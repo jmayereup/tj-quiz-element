@@ -376,6 +376,105 @@ class TjQuizElement extends HTMLElement {
                     border-top: 1px solid var(--border-light);
                     margin-top: 2rem;
                 }
+                .result-area {
+                    padding: 2rem;
+                    text-align: center;
+                    border-bottom: 1px solid var(--border-light);
+                    transition: border-color 0.3s;
+                    margin-bottom: 2rem;
+                }
+                .result-area h2 {
+                    font-size: 1.25em;
+                    font-weight: 600;
+                    margin: 0;
+                }
+                #resultScore {
+                    font-size: 2.5em;
+                    font-weight: 700;
+                    margin: 1rem 0;
+                }
+                #resultScore.high { color: var(--green-color); }
+                #resultScore.medium { color: var(--yellow-color); }
+                #resultScore.low { color: var(--red-color); }
+                .result-area p {
+                    color: var(--subtle-text-light);
+                    transition: color 0.3s;
+                }
+                .input-label {
+                    display: block;
+                    font-size: 0.875em;
+                    font-weight: 500;
+                    color: var(--subtle-text-light);
+                    margin-bottom: 0.25rem;
+                    transition: color 0.3s;
+                }
+                .form-input {
+                    width: 100%;
+                    padding: 0.75rem;
+                    background-color: var(--input-bg-light);
+                    border: 1px solid var(--input-border-light);
+                    border-radius: 0.5rem;
+                    transition: border-color 0.3s, box-shadow 0.3s, background-color 0.3s;
+                    color: var(--text-light);
+                    font-size: 1em;
+                }
+                .form-input:focus {
+                    border-color: var(--primary-color);
+                    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.5);
+                    outline: none;
+                }
+                .form-input.invalid {
+                    border-color: var(--red-color);
+                }
+                .form-input:disabled {
+                    background-color: #e2e8f0;
+                    cursor: not-allowed;
+                }
+                :host(.dark) .form-input:disabled {
+                    background-color: #334155;
+                }
+                .grid-container {
+                    display: grid;
+                    grid-template-columns: 1fr;
+                    gap: 1rem;
+                }
+                @media (min-width: 768px) {
+                    .grid-container {
+                        grid-template-columns: repeat(2, 1fr);
+                    }
+                }
+                .post-score-actions {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 1rem;
+                }
+                @media (min-width: 768px) {
+                    .post-score-actions {
+                        flex-direction: row-reverse;
+                    }
+                }
+                .button-green {
+                    background-color: var(--green-color);
+                    color: var(--primary-text);
+                }
+                .button-green:hover:not(:disabled) {
+                    background-color: var(--green-hover);
+                }
+                .button-slate {
+                    background-color: var(--slate-color);
+                    color: var(--primary-text);
+                }
+                .button-slate:hover:not(:disabled) {
+                    background-color: var(--slate-hover);
+                }
+                #validationMessage {
+                    text-align: center;
+                    margin-bottom: 1rem;
+                    font-weight: 500;
+                    min-height: 1.5rem;
+                }
+                #validationMessage.success { color: var(--green-color); }
+                #validationMessage.error { color: var(--red-color); }
                 .hidden { display: none !important; }
             </style>
             <div class="quiz-wrapper">
@@ -390,6 +489,42 @@ class TjQuizElement extends HTMLElement {
                             <p id="quizDescription">Read the passage, then answer the questions below.</p>
                         </div>
                         <form id="quizForm">
+                            <div id="resultArea" class="result-area hidden">
+                                <h2 id="resultTitle">Your Score:</h2>
+                                <p id="resultScore"></p>
+                                <p id="resultMessage">You can try again with a new set of questions, or enter your information below to send your score.</p>
+                            </div>
+
+                            <fieldset id="studentInfoSection" class="hidden">
+                                <legend>Student Information</legend>
+                                <div>
+                                    <label for="nickname" class="input-label">Nickname</label>
+                                    <input type="text" id="nickname" name="nickname" class="form-input">
+                                </div>
+                                <div class="grid-container" style="margin-top: 1rem;">
+                                    <div>
+                                        <label for="homeroom" class="input-label">Homeroom</label>
+                                        <input type="text" id="homeroom" name="homeroom" class="form-input">
+                                    </div>
+                                    <div>
+                                        <label for="studentId" class="input-label">Student ID</label>
+                                        <input type="text" id="studentId" name="studentId" class="form-input">
+                                    </div>
+                                </div>
+                            </fieldset>
+
+                            <div id="postScoreActions" class="hidden" style="margin-bottom: 2rem;">
+                                <p id="validationMessage"></p>
+                                <div class="post-score-actions">
+                                     <button type="button" id="sendButton" class="button button-green">
+                                        Send Score to Teacher
+                                    </button>
+                                    <button type="button" id="tryAgainButton" class="button button-slate">
+                                        Try Again
+                                    </button>
+                                </div>
+                            </div>
+
                             <fieldset id="readingSection">
                                 <div class="legend-container">
                                     <legend>Reading Passage</legend>
