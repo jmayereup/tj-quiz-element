@@ -1,3 +1,5 @@
+import { config } from './config.js';
+
 class TjQuizElement extends HTMLElement {
     constructor() {
         super();
@@ -12,9 +14,18 @@ class TjQuizElement extends HTMLElement {
         this.audioPlayer = null;
         this.utterance = null;
         this.audioSrc = '';
-        this.submissionUrl = '';
+        this.submissionUrl = config.submissionUrl;
         this.title = '';
         this.passage = '';
+        this.vocabulary = {};
+        this.vocabUserChoices = {}; // Track what user selected for each word
+        this.vocabScore = 0;
+        this.vocabSubmitted = false; // Track if vocab answers have been submitted
+        this.clozeText = '';
+        this.clozeWords = []; // Words that can be removed (from asterisks)
+        this.clozeAnswers = {}; // User's answers for each blank
+        this.clozeScore = 0;
+        this.clozeSubmitted = false;
     }
 
     async connectedCallback() {
@@ -63,8 +74,19 @@ class TjQuizElement extends HTMLElement {
             console.log('External template applied successfully');
             
         } catch (error) {
-            console.warn('Failed to load external template, using inline fallback:', error);
-            this.renderInline();
+            console.error('Failed to load external template:', error);
+            this.shadowRoot.innerHTML = `
+                <div style="padding: 2rem; text-align: center; font-family: Arial, sans-serif; background: #fee2e2; color: #dc2626; border-radius: 0.5rem; margin: 1rem;">
+                    <h2>⚠️ Template Load Error</h2>
+                    <p>Could not load external template files (template.html and styles.css).</p>
+                    <p>Please ensure both files are available in the same directory as the script.</p>
+                    <details style="margin-top: 1rem; text-align: left;">
+                        <summary style="cursor: pointer; font-weight: bold;">Error Details:</summary>
+                        <pre style="background: white; padding: 1rem; border-radius: 0.25rem; margin-top: 0.5rem; overflow: auto;">${error.message}</pre>
+                    </details>
+                </div>
+            `;
+            return;
         }
     }
 
@@ -92,22 +114,31 @@ class TjQuizElement extends HTMLElement {
             
             if (lines.length === 0) continue;
             
-            const sectionType = lines[0].toLowerCase();
+            const sectionHeader = lines[0].toLowerCase();
             const sectionContent = lines.slice(1).join('\n').trim();
             
-            switch (sectionType) {
-                case 'text':
-                    this.passage = sectionContent;
-                    break;
-                case 'vocab':
-                    this.parseVocabulary(sectionContent);
-                    break;
-                case 'audio':
-                    this.parseAudio(sectionContent);
-                    break;
-                case 'questions':
-                    this.parseQuestions(sectionContent);
-                    break;
+            // Check for numbered sections like vocab-5 or questions-3
+            if (sectionHeader.startsWith('vocab')) {
+                const match = sectionHeader.match(/vocab(?:-(\d+))?/);
+                const vocabCount = match && match[1] ? parseInt(match[1]) : null;
+                this.parseVocabulary(sectionContent, vocabCount);
+            } else if (sectionHeader.startsWith('cloze')) {
+                const match = sectionHeader.match(/cloze(?:-(\d+))?/);
+                const clozeCount = match && match[1] ? parseInt(match[1]) : null;
+                this.parseCloze(sectionContent, clozeCount);
+            } else if (sectionHeader.startsWith('questions')) {
+                const match = sectionHeader.match(/questions(?:-(\d+))?/);
+                const questionCount = match && match[1] ? parseInt(match[1]) : null;
+                this.parseQuestions(sectionContent, questionCount);
+            } else {
+                switch (sectionHeader) {
+                    case 'text':
+                        this.passage = sectionContent;
+                        break;
+                    case 'audio':
+                        this.parseAudio(sectionContent);
+                        break;
+                }
             }
         }
         
@@ -125,17 +156,31 @@ class TjQuizElement extends HTMLElement {
         });
     }
 
-    parseVocabulary(vocabSection) {
+    parseVocabulary(vocabSection, maxWords = null) {
         if (!vocabSection) return;
         
         // Parse vocabulary: word: definition, word: definition
         const vocabPairs = vocabSection.split(',');
+        const allVocab = {};
+        
         vocabPairs.forEach(pair => {
             const [word, definition] = pair.split(':').map(s => s.trim());
             if (word && definition) {
-                this.vocabulary[word] = definition;
+                allVocab[word] = definition;
             }
         });
+        
+        // If maxWords is specified, randomly select that many words
+        if (maxWords && Object.keys(allVocab).length > maxWords) {
+            const vocabEntries = Object.entries(allVocab);
+            this.shuffleArray(vocabEntries);
+            const selectedEntries = vocabEntries.slice(0, maxWords);
+            this.vocabulary = Object.fromEntries(selectedEntries);
+        } else {
+            this.vocabulary = allVocab;
+        }
+        
+        console.log('Vocabulary parsed. Total words:', Object.keys(this.vocabulary).length, 'Max words:', maxWords);
     }
 
     parseAudio(audioSection) {
@@ -148,17 +193,38 @@ class TjQuizElement extends HTMLElement {
         }
     }
 
-    parseQuestions(questionsSection) {
+    parseCloze(clozeSection, maxBlanks = null) {
+        if (!clozeSection) return;
+        
+        this.clozeText = clozeSection;
+        
+        // Extract words marked with asterisks
+        const asteriskMatches = clozeSection.match(/\*([^*]+)\*/g);
+        if (asteriskMatches) {
+            this.clozeWords = asteriskMatches.map(match => match.replace(/\*/g, ''));
+            
+            // If maxBlanks is specified, randomly select that many words to remove
+            if (maxBlanks && this.clozeWords.length > maxBlanks) {
+                this.shuffleArray(this.clozeWords);
+                this.clozeWords = this.clozeWords.slice(0, maxBlanks);
+            }
+        }
+        
+        console.log('Cloze parsed. Total words available:', asteriskMatches ? asteriskMatches.length : 0, 'Words to remove:', this.clozeWords.length, 'Max blanks:', maxBlanks);
+    }
+
+    parseQuestions(questionsSection, maxQuestions = null) {
         if (!questionsSection) return;
         
         const lines = questionsSection.split('\n').map(l => l.trim()).filter(l => l.length > 0);
         let currentQuestion = null;
+        const tempQuestionBank = [];
         
         for (const line of lines) {
             if (line.startsWith('Q:')) {
                 // New question
                 if (currentQuestion) {
-                    this.questionBank.push(currentQuestion);
+                    tempQuestionBank.push(currentQuestion);
                 }
                 currentQuestion = {
                     q: line.substring(2).trim(),
@@ -184,372 +250,263 @@ class TjQuizElement extends HTMLElement {
         
         // Don't forget the last question
         if (currentQuestion) {
-            this.questionBank.push(currentQuestion);
+            tempQuestionBank.push(currentQuestion);
+        }
+        
+        // If maxQuestions is specified, randomly select that many questions
+        if (maxQuestions && tempQuestionBank.length > maxQuestions) {
+            this.shuffleArray(tempQuestionBank);
+            this.questionBank = tempQuestionBank.slice(0, maxQuestions);
+        } else {
+            this.questionBank = tempQuestionBank;
+        }
+        
+        console.log('Questions parsed. Total questions in bank:', this.questionBank.length, 'Max questions:', maxQuestions);
+    }
+
+    generateVocabMatching() {
+        const vocabSection = this.shadowRoot.getElementById('vocabSection');
+        const vocabGrid = this.shadowRoot.getElementById('vocabGrid');
+        
+        if (Object.keys(this.vocabulary).length === 0) {
+            vocabSection.classList.add('hidden');
+            return;
+        }
+        
+        vocabSection.classList.remove('hidden');
+        vocabGrid.innerHTML = '';
+        
+        // Reset vocabulary tracking
+        this.vocabScore = 0;
+        this.vocabUserChoices = {};
+        this.vocabSubmitted = false;
+        
+        const words = Object.keys(this.vocabulary);
+        const allDefinitions = Object.values(this.vocabulary);
+        
+        // Shuffle definitions to make it more challenging
+        this.shuffleArray(allDefinitions);
+        
+        // Create definition header row
+        const headerRow = document.createElement('div');
+        headerRow.className = 'vocab-grid-header';
+        
+        // Word column header
+        const wordHeaderCell = document.createElement('div');
+        wordHeaderCell.className = 'vocab-grid-header-cell';
+        wordHeaderCell.textContent = 'Word';
+        headerRow.appendChild(wordHeaderCell);
+        
+        // Definition header cells
+        allDefinitions.forEach((definition) => {
+            const headerCell = document.createElement('div');
+            headerCell.className = 'vocab-grid-header-cell';
+            headerCell.textContent = definition;
+            headerRow.appendChild(headerCell);
+        });
+        
+        vocabGrid.appendChild(headerRow);
+        
+        // Create word rows
+        words.forEach((word, wordIndex) => {
+            const wordRow = document.createElement('div');
+            wordRow.className = 'vocab-grid-row';
+            
+            // Word cell
+            const wordCell = document.createElement('div');
+            wordCell.className = 'vocab-grid-cell vocab-word-cell';
+            wordCell.textContent = word;
+            wordRow.appendChild(wordCell);
+            
+            // Radio button cells for each definition
+            allDefinitions.forEach((definition, defIndex) => {
+                const optionCell = document.createElement('div');
+                optionCell.className = 'vocab-grid-cell vocab-option-cell';
+                
+                const radioContainer = document.createElement('div');
+                radioContainer.className = 'vocab-radio-container';
+                
+                const radio = document.createElement('input');
+                radio.type = 'radio';
+                radio.name = `vocab-${wordIndex}`;
+                radio.value = definition;
+                radio.id = `vocab-${wordIndex}-${defIndex}`;
+                
+                radioContainer.appendChild(radio);
+                optionCell.appendChild(radioContainer);
+                wordRow.appendChild(optionCell);
+            });
+            
+            vocabGrid.appendChild(wordRow);
+        });
+    }
+
+    generateCloze() {
+        const clozeSection = this.shadowRoot.getElementById('clozeSection');
+        const clozeWordBank = this.shadowRoot.getElementById('clozeWordBank');
+        const clozeTextElement = this.shadowRoot.getElementById('clozeText');
+        
+        if (!this.clozeText || this.clozeWords.length === 0) {
+            clozeSection.classList.add('hidden');
+            return;
+        }
+        
+        clozeSection.classList.remove('hidden');
+        
+        // Reset cloze tracking
+        this.clozeScore = 0;
+        this.clozeAnswers = {};
+        this.clozeSubmitted = false;
+        
+        // Create word bank
+        clozeWordBank.innerHTML = `
+            <div class="cloze-bank-title">Word Bank</div>
+            <div class="cloze-bank-words">
+                ${this.clozeWords.map(word => `<span class="cloze-bank-word">${word}</span>`).join('')}
+            </div>
+        `;
+        
+        // Create text with blanks
+        let textWithBlanks = this.clozeText;
+        let blankIndex = 0;
+        
+        // Replace selected words with blanks
+        this.clozeWords.forEach(word => {
+            const regex = new RegExp(`\\*${word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\*`, 'gi');
+            textWithBlanks = textWithBlanks.replace(regex, () => {
+                const inputHtml = `<input type="text" class="cloze-blank" data-answer="${word.toLowerCase()}" data-blank-index="${blankIndex}" autocomplete="off" spellcheck="false" placeholder="____" title="Fill in the blank">`;
+                blankIndex++;
+                return inputHtml;
+            });
+        });
+        
+        // Remove remaining asterisks from words not selected for blanks
+        textWithBlanks = textWithBlanks.replace(/\*([^*]+)\*/g, '$1');
+        
+        clozeTextElement.innerHTML = textWithBlanks;
+    }
+
+    handleVocabAnswer(e) {
+        if (e.target.type !== 'radio' || !e.target.name.startsWith('vocab-')) return;
+
+        const radio = e.target;
+        const wordIndex = parseInt(radio.name.split('-')[1]);
+        const words = Object.keys(this.vocabulary);
+        const word = words[wordIndex];
+        const selectedDefinition = radio.value;
+        
+        // Store the user's choice
+        this.vocabUserChoices[word] = selectedDefinition;
+        
+        // Check if all vocabulary questions are answered
+        const allAnswered = Object.keys(this.vocabUserChoices).length === Object.keys(this.vocabulary).length;
+        
+        if (allAnswered) {
+            // Check if all sections are complete to enable score button
+            const allQuestionsAnswered = this.questionBank.length === 0 || this.checkAllQuestionsAnswered();
+            const allClozeAnswered = this.clozeWords.length === 0 || Object.keys(this.clozeAnswers).filter(key => this.clozeAnswers[key].length > 0).length === this.clozeWords.length;
+            
+            if (allQuestionsAnswered && allClozeAnswered) {
+                const checkScoreButton = this.shadowRoot.getElementById('checkScoreButton');
+                checkScoreButton.disabled = false;
+            }
         }
     }
 
-    renderInline() {
-        // Fallback inline template with comprehensive styles
-        this.shadowRoot.innerHTML = `
-            <style>
-                :host {
-                    display: block;
-                    --bg-light: #f1f5f9;
-                    --text-light: #1e293b;
-                    --card-bg-light: #ffffff;
-                    --card-shadow-light: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-                    --border-light: #e2e8f0;
-                    --input-bg-light: #f8fafc;
-                    --input-border-light: #cbd5e1;
-                    --subtle-text-light: #475569;
-                    --primary-color: #4f46e5;
-                    --primary-hover: #4338ca;
-                    --primary-text: #ffffff;
-                    --green-color: #16a34a;
-                    --green-hover: #15803d;
-                    --green-light-bg: #dcfce7;
-                    --red-color: #ef4444;
-                    --red-light-bg: #fee2e2;
-                    --yellow-color: #eab308;
-                    --slate-color: #64748b;
-                    --slate-hover: #475569;
-                    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-                }
-                
-                :host(.dark) {
-                    --bg-light: #0f172a;
-                    --text-light: #e2e8f0;
-                    --card-bg-light: #1e293b;
-                    --card-shadow-light: 0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -2px rgba(0, 0, 0, 0.2);
-                    --border-light: #334155;
-                    --input-bg-light: #334155;
-                    --input-border-light: #475569;
-                    --subtle-text-light: #94a3b8;
-                    --green-light-bg: #14532d;
-                    --red-light-bg: #7f1d1d;
-                }
-                
-                .quiz-wrapper * { box-sizing: border-box; }
-                .quiz-wrapper { 
-                    font-family: var(--font-sans); 
-                    background-color: var(--bg-light); 
-                    color: var(--text-light); 
-                    line-height: 1.6; 
-                    transition: background-color 0.3s, color 0.3s; 
-                    padding: 1rem 0; 
-                }
-                .quiz-wrapper p { font-size: 1em; margin-bottom: 1rem; }
-                .container { max-width: 800px; margin: 0 auto; padding: 0 1rem; }
-                .quiz-card { 
-                    background-color: var(--card-bg-light); 
-                    border-radius: 0.75rem; 
-                    box-shadow: var(--card-shadow-light); 
-                    overflow: hidden; 
-                    transition: background-color 0.3s;
-                }
-                .quiz-header { 
-                    background-color: var(--primary-color); 
-                    color: var(--primary-text); 
-                    padding: 1.5rem; 
-                    position: relative; 
-                }
-                .quiz-header h1 { font-size: 1.5em; font-weight: 700; margin: 0; }
-                .quiz-header p { margin-top: 0.5rem; color: #e0e7ff; opacity: 0.9; font-size: 0.9375em; }
-                .theme-toggle { 
-                    position: absolute; 
-                    top: 1rem; 
-                    right: 1rem; 
-                    cursor: pointer; 
-                    padding: 0.5rem; 
-                    border-radius: 50%; 
-                    background-color: rgba(255, 255, 255, 0.1); 
-                    color: white; 
-                    border: none;
-                    font-size: 1.25em;
-                }
-                .theme-toggle:hover { background-color: rgba(255, 255, 255, 0.2); }
-                form { padding: 2rem; }
-                fieldset { border: none; padding: 0; margin: 0 0 2rem 0; }
-                .legend-container {
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    border-bottom: 1px solid var(--border-light);
-                    padding-bottom: 0.5rem;
-                    margin-bottom: 1rem;
-                }
-                legend { font-size: 1.125em; font-weight: 600; color: var(--text-light); margin: 0; }
-                .reading-instructions {
-                    font-size: 0.9em;
-                    color: var(--subtle-text-light);
-                    margin-bottom: 1.5rem;
-                    margin-top: -0.5rem;
-                }
-                .audio-toggle {
-                    cursor: pointer;
-                    padding: 0.75rem;
-                    border-radius: 50%;
-                    background-color: var(--primary-color);
-                    border: none;
-                    color: var(--primary-text);
-                    transition: background-color 0.2s;
-                }
-                .audio-toggle:hover { background-color: var(--primary-hover); }
-                .audio-toggle svg { width: 1.5em; height: 1.5em; }
-                .passage-content { 
-                    background-color: var(--input-bg-light); 
-                    border-radius: 0.5rem; 
-                    padding: 1.5rem; 
-                    margin-bottom: 1.5rem; 
-                    border: 1px solid var(--border-light); 
-                    line-height: 1.7; 
-                }
-                .question-block { padding-top: 1.5rem; border-top: 1px solid var(--border-light); }
-                .question-block:first-of-type { border-top: none; padding-top: 0; }
-                .question-text { font-weight: 600; margin-bottom: 1rem; font-size: 1em; }
-                .options-group { display: flex; flex-direction: column; gap: 0.75rem; }
-                .option-label { 
-                    display: flex; 
-                    align-items: center; 
-                    padding: 1rem; 
-                    background-color: var(--input-bg-light); 
-                    border-radius: 0.5rem; 
-                    cursor: pointer; 
-                    border: 1px solid transparent; 
-                    transition: background-color 0.3s, border-color 0.3s;
-                    font-size: 0.9375em;
-                }
-                .option-label:hover { background-color: #e2e8f0; }
-                :host(.dark) .option-label:hover { background-color: #334155; }
-                .option-label.correct { 
-                    background-color: var(--green-light-bg); 
-                    border-color: var(--green-color); 
-                }
-                .option-label.incorrect { 
-                    background-color: var(--red-light-bg); 
-                    border-color: var(--red-color); 
-                }
-                .form-radio { 
-                    width: 1.125em; 
-                    height: 1.125em; 
-                    margin-right: 0.75em; 
-                    accent-color: var(--primary-color); 
-                    flex-shrink: 0;
-                }
-                .form-radio:disabled { cursor: not-allowed; }
-                .feedback-icon { margin-left: auto; font-size: 1.25em; }
-                .explanation {
-                    margin-top: 1rem;
-                    padding: 1rem;
-                    background-color: var(--input-bg-light);
-                    border-radius: 0.5rem;
-                    border-left: 4px solid var(--primary-color);
-                    font-size: 0.9em;
-                    line-height: 1.5;
-                }
-                .explanation-content strong { color: var(--primary-color); }
-                .button { 
-                    width: 100%; 
-                    font-weight: 600; 
-                    padding: 0.875rem 1.5rem; 
-                    border-radius: 0.5rem; 
-                    border: none; 
-                    cursor: pointer; 
-                    background-color: var(--primary-color); 
-                    color: var(--primary-text);
-                    font-size: 1em;
-                    transition: all 0.2s ease-in-out;
-                }
-                .button:hover:not(:disabled) {
-                    transform: translateY(-2px);
-                    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-                    background-color: var(--primary-hover);
-                }
-                .button:disabled {
-                    background-color: #94a3b8;
-                    cursor: not-allowed;
-                    transform: none;
-                    box-shadow: none;
-                }
-                .actions-container {
-                    padding-top: 1.5rem;
-                    border-top: 1px solid var(--border-light);
-                    margin-top: 2rem;
-                }
-                .result-area {
-                    padding: 2rem;
-                    text-align: center;
-                    border-bottom: 1px solid var(--border-light);
-                    transition: border-color 0.3s;
-                    margin-bottom: 2rem;
-                }
-                .result-area h2 {
-                    font-size: 1.25em;
-                    font-weight: 600;
-                    margin: 0;
-                }
-                #resultScore {
-                    font-size: 2.5em;
-                    font-weight: 700;
-                    margin: 1rem 0;
-                }
-                #resultScore.high { color: var(--green-color); }
-                #resultScore.medium { color: var(--yellow-color); }
-                #resultScore.low { color: var(--red-color); }
-                .result-area p {
-                    color: var(--subtle-text-light);
-                    transition: color 0.3s;
-                }
-                .input-label {
-                    display: block;
-                    font-size: 0.875em;
-                    font-weight: 500;
-                    color: var(--subtle-text-light);
-                    margin-bottom: 0.25rem;
-                    transition: color 0.3s;
-                }
-                .form-input {
-                    width: 100%;
-                    padding: 0.75rem;
-                    background-color: var(--input-bg-light);
-                    border: 1px solid var(--input-border-light);
-                    border-radius: 0.5rem;
-                    transition: border-color 0.3s, box-shadow 0.3s, background-color 0.3s;
-                    color: var(--text-light);
-                    font-size: 1em;
-                }
-                .form-input:focus {
-                    border-color: var(--primary-color);
-                    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.5);
-                    outline: none;
-                }
-                .form-input.invalid {
-                    border-color: var(--red-color);
-                }
-                .form-input:disabled {
-                    background-color: #e2e8f0;
-                    cursor: not-allowed;
-                }
-                :host(.dark) .form-input:disabled {
-                    background-color: #334155;
-                }
-                .grid-container {
-                    display: grid;
-                    grid-template-columns: 1fr;
-                    gap: 1rem;
-                }
-                @media (min-width: 768px) {
-                    .grid-container {
-                        grid-template-columns: repeat(2, 1fr);
+    handleClozeAnswer(e) {
+        if (e.target.type !== 'text' || !e.target.classList.contains('cloze-blank')) return;
+
+        const input = e.target;
+        const correctAnswer = input.dataset.answer;
+        const userAnswer = input.value.trim().toLowerCase();
+        
+        // Store the user's answer
+        this.clozeAnswers[input.dataset.blankIndex] = userAnswer;
+        
+        // Check if all cloze blanks are filled
+        const totalBlanks = this.clozeWords.length;
+        const filledBlanks = Object.keys(this.clozeAnswers).filter(key => this.clozeAnswers[key].length > 0).length;
+        
+        if (filledBlanks === totalBlanks) {
+            // Check if all sections are complete to enable score button
+            const vocabComplete = Object.keys(this.vocabulary).length === 0 || Object.keys(this.vocabUserChoices).length === Object.keys(this.vocabulary).length;
+            const questionsComplete = this.questionBank.length === 0 || this.checkAllQuestionsAnswered();
+            
+            if (vocabComplete && questionsComplete) {
+                const checkScoreButton = this.shadowRoot.getElementById('checkScoreButton');
+                checkScoreButton.disabled = false;
+            }
+        }
+    }
+
+    showVocabScore() {
+        // Calculate vocabulary score by comparing user choices to correct answers
+        this.vocabScore = 0;
+        const totalVocab = Object.keys(this.vocabulary).length;
+        
+        // Show feedback for each vocabulary question
+        const words = Object.keys(this.vocabulary);
+        words.forEach((word, wordIndex) => {
+            const userDefinition = this.vocabUserChoices[word];
+            const correctDefinition = this.vocabulary[word];
+            const isCorrect = userDefinition === correctDefinition;
+            
+            if (isCorrect) {
+                this.vocabScore++;
+            }
+            
+            // Find the selected radio button and its cell
+            const radioName = `vocab-${wordIndex}`;
+            const selectedRadio = this.shadowRoot.querySelector(`input[name="${radioName}"]:checked`);
+            
+            if (selectedRadio) {
+                // Disable all radio buttons for this word
+                const allRadios = this.shadowRoot.querySelectorAll(`input[name="${radioName}"]`);
+                allRadios.forEach(radio => {
+                    radio.disabled = true;
+                    const cell = radio.closest('.vocab-option-cell');
+                    
+                    if (radio.value === correctDefinition) {
+                        cell.classList.add('correct');
+                    } else if (radio.checked) {
+                        cell.classList.add('incorrect');
                     }
-                }
-                .post-score-actions {
-                    display: flex;
-                    flex-direction: column;
-                    gap: 1rem;
-                }
-                @media (min-width: 768px) {
-                    .post-score-actions {
-                        flex-direction: row-reverse;
-                    }
-                }
-                .button-green {
-                    background-color: var(--green-color);
-                    color: var(--primary-text);
-                }
-                .button-green:hover:not(:disabled) {
-                    background-color: var(--green-hover);
-                }
-                .button-slate {
-                    background-color: var(--slate-color);
-                    color: var(--primary-text);
-                }
-                .button-slate:hover:not(:disabled) {
-                    background-color: var(--slate-hover);
-                }
-                #validationMessage {
-                    text-align: center;
-                    margin-bottom: 1rem;
-                    font-weight: 500;
-                    min-height: 1.5rem;
-                }
-                #validationMessage.success { color: var(--green-color); }
-                #validationMessage.error { color: var(--red-color); }
-                .hidden { display: none !important; }
-            </style>
-            <div class="quiz-wrapper">
-                <div class="container">
-                    <div class="quiz-card">
-                        <div class="quiz-header">
-                            <button class="theme-toggle" title="Toggle Light/Dark Mode">
-                                <span class="light-icon">☀️</span>
-                                <span class="dark-icon hidden">🌙</span>
-                            </button>
-                            <h1 id="quizTitle">TJ Quiz Element</h1>
-                            <p id="quizDescription">Read the passage, then answer the questions below.</p>
-                        </div>
-                        <form id="quizForm">
-                            <div id="resultArea" class="result-area hidden">
-                                <h2 id="resultTitle">Your Score:</h2>
-                                <p id="resultScore"></p>
-                                <p id="resultMessage">You can try again with a new set of questions, or enter your information below to send your score.</p>
-                            </div>
+                });
+            }
+        });
+        
+        const vocabScoreElement = this.shadowRoot.getElementById('vocabScore');
+        vocabScoreElement.textContent = `Vocabulary Score: ${this.vocabScore}/${totalVocab}`;
+        vocabScoreElement.classList.remove('hidden');
+        this.vocabSubmitted = true;
+    }
 
-                            <fieldset id="studentInfoSection" class="hidden">
-                                <legend>Student Information</legend>
-                                <div>
-                                    <label for="nickname" class="input-label">Nickname</label>
-                                    <input type="text" id="nickname" name="nickname" class="form-input">
-                                </div>
-                                <div class="grid-container" style="margin-top: 1rem;">
-                                    <div>
-                                        <label for="homeroom" class="input-label">Homeroom</label>
-                                        <input type="text" id="homeroom" name="homeroom" class="form-input">
-                                    </div>
-                                    <div>
-                                        <label for="studentId" class="input-label">Student ID</label>
-                                        <input type="text" id="studentId" name="studentId" class="form-input">
-                                    </div>
-                                </div>
-                            </fieldset>
-
-                            <div id="postScoreActions" class="hidden" style="margin-bottom: 2rem;">
-                                <p id="validationMessage"></p>
-                                <div class="post-score-actions">
-                                     <button type="button" id="sendButton" class="button button-green">
-                                        Send Score to Teacher
-                                    </button>
-                                    <button type="button" id="tryAgainButton" class="button button-slate">
-                                        Try Again
-                                    </button>
-                                </div>
-                            </div>
-
-                            <fieldset id="readingSection">
-                                <div class="legend-container">
-                                    <legend>Reading Passage</legend>
-                                    <button type="button" class="audio-toggle" title="Play Audio">
-                                        <svg class="play-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
-                                        <svg class="pause-icon hidden" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>
-                                    </button>
-                                </div>
-                                <p class="reading-instructions">Click the play button to hear the passage, then read along and answer the questions below.</p>
-                                <div class="passage-content">
-                                    <p id="passageText"></p>
-                                </div>
-                            </fieldset>
-                            <fieldset id="questionsSection">
-                                <legend>Comprehension Questions</legend>
-                            </fieldset>
-                            <div id="checkScoreContainer" class="actions-container">
-                                <button type="submit" id="checkScoreButton" class="button">Check My Score</button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            </div>
-        `;
-        console.log('Using inline fallback template');
+    showClozeScore() {
+        // Calculate cloze score by comparing user answers to correct answers
+        this.clozeScore = 0;
+        const totalBlanks = this.clozeWords.length;
+        
+        // Show feedback for each cloze blank
+        const clozeInputs = this.shadowRoot.querySelectorAll('.cloze-blank');
+        clozeInputs.forEach(input => {
+            const correctAnswer = input.dataset.answer.toLowerCase();
+            const userAnswer = input.value.trim().toLowerCase();
+            const isCorrect = userAnswer === correctAnswer;
+            
+            if (isCorrect) {
+                this.clozeScore++;
+                input.classList.add('correct');
+            } else {
+                input.classList.add('incorrect');
+            }
+            
+            input.disabled = true;
+        });
+        
+        const clozeScoreElement = this.shadowRoot.getElementById('clozeScore');
+        clozeScoreElement.textContent = `Fill in the Blanks Score: ${this.clozeScore}/${totalBlanks}`;
+        clozeScoreElement.classList.remove('hidden');
+        this.clozeSubmitted = true;
     }
 
     setupEventListeners() {
@@ -558,7 +515,13 @@ class TjQuizElement extends HTMLElement {
         const tryAgainButton = this.shadowRoot.getElementById('tryAgainButton');
         const themeToggle = this.shadowRoot.querySelector('.theme-toggle');
 
-        quizForm.addEventListener('change', (e) => this.handleAnswer(e));
+        quizForm.addEventListener('change', (e) => {
+            this.handleAnswer(e);
+            this.handleVocabAnswer(e);
+        });
+        quizForm.addEventListener('input', (e) => {
+            this.handleClozeAnswer(e);
+        });
         quizForm.addEventListener('submit', (e) => this.handleSubmit(e));
         sendButton.addEventListener('click', () => this.sendScore());
         tryAgainButton.addEventListener('click', () => this.resetQuiz());
@@ -693,23 +656,35 @@ class TjQuizElement extends HTMLElement {
         this.questionsAnswered = 0;
         checkScoreButton.disabled = true;
 
-        // Generate questions
+        // Generate vocabulary matching if vocabulary exists
+        this.generateVocabMatching();
+
+        // Generate cloze section if cloze exists
+        this.generateCloze();
+
+        // Use all questions from questionBank (already filtered by parseQuestions if needed)
         this.shuffleArray(this.questionBank);
-        this.currentQuestions = this.questionBank.slice(0, this.questionsToDisplay);
-        this.totalQuestions = Math.min(this.questionsToDisplay, this.questionBank.length);
-        
-        console.log('Current questions:', this.currentQuestions.length);
+        this.currentQuestions = this.questionBank; // Use all questions since they're already filtered
+        this.totalQuestions = this.questionBank.length;
         
         this.currentQuestions.forEach((q, index) => {
             questionsSection.appendChild(this.createQuestionBlock(q, index));
         });
     }
 
+    checkAllQuestionsAnswered() {
+        return this.questionsAnswered === this.totalQuestions;
+    }
+
     handleAnswer(e) {
         if (e.target.type !== 'radio' || e.target.dataset.answered) return;
-
+        
         const selectedRadio = e.target;
         const questionName = selectedRadio.name;
+        
+        // Skip vocabulary radio buttons - they're handled by handleVocabAnswer
+        if (questionName.startsWith('vocab-')) return;
+        
         const questionIndex = parseInt(questionName.substring(1));
         
         const questionData = this.currentQuestions[questionIndex];
@@ -748,7 +723,12 @@ class TjQuizElement extends HTMLElement {
             explanation.classList.remove('hidden');
         }
         
-        if (this.questionsAnswered === this.totalQuestions) {
+        // Enable check score button when all questions are answered and vocabulary is complete (if any)
+        const vocabComplete = Object.keys(this.vocabulary).length === 0 || Object.keys(this.vocabUserChoices).length === Object.keys(this.vocabulary).length;
+        const questionsComplete = this.checkAllQuestionsAnswered();
+        const clozeComplete = this.clozeWords.length === 0 || Object.keys(this.clozeAnswers).filter(key => this.clozeAnswers[key].length > 0).length === this.clozeWords.length;
+        
+        if (vocabComplete && questionsComplete && clozeComplete) {
             this.shadowRoot.getElementById('checkScoreButton').disabled = false;
         }
     }
@@ -759,29 +739,126 @@ class TjQuizElement extends HTMLElement {
     }
 
     showFinalScore() {
+        // Calculate and show vocabulary score/feedback if vocabulary exists and hasn't been scored yet
+        if (Object.keys(this.vocabulary).length > 0 && !this.vocabSubmitted) {
+            this.showVocabScore();
+        }
+        
+        // Calculate and show cloze score if cloze exists and hasn't been scored yet
+        if (this.clozeWords.length > 0 && !this.clozeSubmitted) {
+            this.showClozeScore();
+        }
+        
         const resultScore = this.shadowRoot.getElementById('resultScore');
         const readingSection = this.shadowRoot.getElementById('readingSection');
         const questionsSection = this.shadowRoot.getElementById('questionsSection');
+        const vocabSection = this.shadowRoot.getElementById('vocabSection');
         const checkScoreContainer = this.shadowRoot.getElementById('checkScoreContainer');
         const resultArea = this.shadowRoot.getElementById('resultArea');
         const studentInfoSection = this.shadowRoot.getElementById('studentInfoSection');
         const postScoreActions = this.shadowRoot.getElementById('postScoreActions');
         
-        resultScore.textContent = `${this.score} / ${this.totalQuestions}`;
-        const scorePercentage = this.score / this.totalQuestions;
+        // Calculate total score (vocabulary + cloze + questions)
+        const vocabTotal = Object.keys(this.vocabulary).length;
+        const clozeTotal = this.clozeWords.length;
+        const questionTotal = this.totalQuestions;
+        const totalPossible = vocabTotal + clozeTotal + questionTotal;
+        const totalEarned = this.vocabScore + this.clozeScore + this.score;
+        
+        console.log('Final scoring - Vocab total:', vocabTotal, 'Cloze total:', clozeTotal, 'Question total:', questionTotal, 'Total possible:', totalPossible);
+        console.log('Final scoring - Vocab score:', this.vocabScore, 'Cloze score:', this.clozeScore, 'Question score:', this.score, 'Total earned:', totalEarned);
+        
+        // Update score display to show combined score with better formatting
+        if (totalPossible > 0) {
+            const percentage = Math.round((totalEarned / totalPossible) * 100);
+            
+            // Determine how many sections we have
+            const sectionsPresent = [];
+            if (vocabTotal > 0) sectionsPresent.push('vocab');
+            if (clozeTotal > 0) sectionsPresent.push('cloze');
+            if (questionTotal > 0) sectionsPresent.push('questions');
+            
+            if (sectionsPresent.length > 1) {
+                // Multiple sections - show breakdown
+                let breakdownHTML = '';
+                if (vocabTotal > 0) {
+                    breakdownHTML += `
+                        <div class="score-section">
+                            <span class="score-label">Vocabulary:</span>
+                            <span class="score-value">${this.vocabScore}/${vocabTotal}</span>
+                        </div>`;
+                }
+                if (clozeTotal > 0) {
+                    breakdownHTML += `
+                        <div class="score-section">
+                            <span class="score-label">Fill-in-the-blank:</span>
+                            <span class="score-value">${this.clozeScore}/${clozeTotal}</span>
+                        </div>`;
+                }
+                if (questionTotal > 0) {
+                    breakdownHTML += `
+                        <div class="score-section">
+                            <span class="score-label">Questions:</span>
+                            <span class="score-value">${this.score}/${questionTotal}</span>
+                        </div>`;
+                }
+                
+                resultScore.innerHTML = `
+                    <div class="score-main">${totalEarned} / ${totalPossible}</div>
+                    <div class="score-percentage">${percentage}%</div>
+                    <div class="score-breakdown">
+                        ${breakdownHTML}
+                    </div>
+                `;
+            } else if (vocabTotal > 0) {
+                // Vocabulary only
+                resultScore.innerHTML = `
+                    <div class="score-main">${this.vocabScore} / ${vocabTotal}</div>
+                    <div class="score-percentage">${percentage}%</div>
+                    <div class="score-label">Vocabulary Score</div>
+                `;
+            } else if (clozeTotal > 0) {
+                // Cloze only
+                resultScore.innerHTML = `
+                    <div class="score-main">${this.clozeScore} / ${clozeTotal}</div>
+                    <div class="score-percentage">${percentage}%</div>
+                    <div class="score-label">Fill-in-the-blank Score</div>
+                `;
+            } else {
+                // Questions only
+                resultScore.innerHTML = `
+                    <div class="score-main">${this.score} / ${questionTotal}</div>
+                    <div class="score-percentage">${percentage}%</div>
+                    <div class="score-label">Questions Score</div>
+                `;
+            }
+        } else {
+            const percentage = Math.round((this.score / this.totalQuestions) * 100);
+            resultScore.innerHTML = `
+                <div class="score-main">${this.score} / ${this.totalQuestions}</div>
+                <div class="score-percentage">${percentage}%</div>
+            `;
+        }
+        
+        const scorePercentage = totalPossible > 0 ? totalEarned / totalPossible : this.score / this.totalQuestions;
         resultScore.className = '';
         if (scorePercentage >= 0.8) resultScore.classList.add('high');
         else if (scorePercentage >= 0.5) resultScore.classList.add('medium');
         else resultScore.classList.add('low');
         
-        readingSection.classList.add('hidden');
-        questionsSection.classList.add('hidden');
+        // Keep all sections visible, just hide the check score button
         checkScoreContainer.classList.add('hidden');
         resultArea.classList.remove('hidden');
         studentInfoSection.classList.remove('hidden');
         postScoreActions.classList.remove('hidden');
         
-        this.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        // Scroll to the top of the quiz card
+        const quizCard = this.shadowRoot.querySelector('.quiz-card');
+        if (quizCard) {
+            quizCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        } else {
+            this.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
         this.stopAllAudio();
     }
 
@@ -815,13 +892,22 @@ class TjQuizElement extends HTMLElement {
         tryAgainButton.disabled = true;
         sendButton.textContent = 'Sending...';
         
+        const vocabTotal = Object.keys(this.vocabulary).length;
+        const questionTotal = this.totalQuestions;
+        const totalPossible = vocabTotal + questionTotal;
+        const totalEarned = this.vocabScore + this.score;
+        
         const studentData = {
             quizName: this.title,
             nickname: this.shadowRoot.getElementById('nickname').value,
             homeroom: this.shadowRoot.getElementById('homeroom').value,
             studentId: this.shadowRoot.getElementById('studentId').value,
-            score: this.score,
-            total: this.totalQuestions,
+            score: totalEarned,
+            total: totalPossible,
+            vocabScore: this.vocabScore,
+            vocabTotal: vocabTotal,
+            questionScore: this.score,
+            questionTotal: questionTotal,
             timestamp: new Date().toISOString()
         };
         

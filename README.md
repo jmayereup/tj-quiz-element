@@ -16,12 +16,18 @@ A reusable custom HTML element for creating interactive reading comprehension ac
 
 ## Installation
 
-1. Include the JavaScript file in your HTML:
+1. Clone or download this repository
+2. Copy `config.template.js` to `config.js` and update it with your configuration:
+```bash
+cp config.template.js config.js
+```
+3. Edit `config.js` to include your actual submission URL (if using score submission)
+4. Include the JavaScript file in your HTML:
 ```html
-<script src="tj-quiz-element.js"></script>
+<script type="module" src="tj-quiz-element.js"></script>
 ```
 
-2. Include the Inter font (recommended):
+5. Include the Inter font (recommended):
 ```html
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
