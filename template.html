@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Reader Template</title>
+</head>
+<body>
+    <div class="quiz-wrapper">
+        <div class="container">
+            <div class="quiz-card">
+                <div class="quiz-header">
+                    <span class="theme-toggle" title="Toggle Light/Dark Mode">
+                        <span class="light-icon">☀️</span>
+                        <span class="dark-icon hidden">🌙</span>
+                    </span>
+                    <h1 id="quizTitle">Interactive Reading</h1>
+                    <p id="quizDescription">Read the passage, then answer the questions below.</p>
+                </div>
+
+                <form id="quizForm">
+                    <div id="resultArea" class="result-area hidden">
+                        <h2 id="resultTitle">Your Score:</h2>
+                        <p id="resultScore"></p>
+                        <p id="resultMessage">You can try again with a new set of questions, or enter your information below to send your score.</p>
+                    </div>
+
+                    <fieldset id="studentInfoSection" class="hidden">
+                        <legend>Student Information</legend>
+                        <div>
+                            <label for="nickname" class="input-label">Nickname</label>
+                            <input type="text" id="nickname" name="nickname" class="form-input">
+                        </div>
+                        <div class="grid-container" style="margin-top: 1rem;">
+                            <div>
+                                <label for="homeroom" class="input-label">Homeroom</label>
+                                <input type="text" id="homeroom" name="homeroom" class="form-input">
+                            </div>
+                            <div>
+                                <label for="studentId" class="input-label">Student ID</label>
+                                <input type="text" id="studentId" name="studentId" class="form-input">
+                            </div>
+                        </div>
+                    </fieldset>
+
+                    <div id="postScoreActions" class="hidden" style="margin-bottom: 2rem;">
+                        <p id="validationMessage"></p>
+                        <div class="post-score-actions">
+                             <button type="button" id="sendButton" class="button button-green">
+                                Send Score to Teacher
+                            </button>
+                            <button type="button" id="tryAgainButton" class="button button-slate">
+                                Try Again
+                            </button>
+                        </div>
+                    </div>
+
+                    <fieldset id="readingSection">
+                        <div class="legend-container">
+                            <legend>Reading Passage</legend>
+                            <button type="button" class="audio-toggle" title="Play Audio">
+                                <svg class="play-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                                <svg class="pause-icon hidden" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>
+                            </button>
+                        </div>
+                        <p class="reading-instructions">Click the play button to hear the passage, then read along and answer the questions below.</p>
+                        <div class="passage-content">
+                            <p id="passageText"></p>
+                        </div>
+                    </fieldset>
+
+                    <fieldset id="questionsSection">
+                        <legend>Comprehension Questions</legend>
+                    </fieldset>
+
+                    <div id="checkScoreContainer" class="actions-container">
+                        <button type="submit" id="checkScoreButton" class="button button-primary">
+                            Check My Score
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
