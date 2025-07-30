@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multiple Quiz Elements Test</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script type="module" src="tj-quiz-element.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 2rem; }
+        h2 { margin-top: 3rem; color: #333; }
+        .quiz-container { margin: 2rem 0; }
+    </style>
+</head>
+<body>
+    <h1>Multiple Quiz Elements Demo</h1>
+    
+    <h2>Quiz 1: Cloze Exercise</h2>
+    <div class="quiz-container">
+        <tj-quiz-element>
+        ---cloze-2
+        This fundamental *change* in Little *Red* Riding Hood's character has a ripple effect.
+        </tj-quiz-element>
+    </div>
+
+    <h2>Quiz 2: Vocabulary Matching</h2>
+    <div class="quiz-container">
+        <tj-quiz-element>
+        ---vocab-3
+        change: transformation, character: personality, ripple: wave effect
+        </tj-quiz-element>
+    </div>
+
+    <h2>Quiz 3: Mixed Content</h2>
+    <div class="quiz-container">
+        <tj-quiz-element>
+        ---text
+        The quick brown fox jumps over the lazy dog.
+        ---cloze-1
+        The *quick* brown fox jumps.
+        ---vocab-2
+        quick: fast, brown: color
+        </tj-quiz-element>
+    </div>
+
+</body>
+</html>

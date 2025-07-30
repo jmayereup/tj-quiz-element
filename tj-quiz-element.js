@@ -10,7 +10,7 @@ class TjQuizElement extends HTMLElement {
         this.score = 0;
         this.questionsAnswered = 0;
         this.questionsToDisplay = 5;
-        this.totalQuestions = this.questionsToDisplay;
+        this.totalQuestions = 0; // Will be set based on actual question count
         this.audioPlayer = null;
         this.utterance = null;
         this.audioSrc = '';
@@ -644,6 +644,7 @@ class TjQuizElement extends HTMLElement {
     
     generateQuiz() {
         const questionsSection = this.shadowRoot.getElementById('questionsSection');
+        const readingSection = this.shadowRoot.getElementById('readingSection');
         const checkScoreButton = this.shadowRoot.getElementById('checkScoreButton');
         
         console.log('generateQuiz called, questionBank length:', this.questionBank.length);
@@ -656,20 +657,54 @@ class TjQuizElement extends HTMLElement {
         this.questionsAnswered = 0;
         checkScoreButton.disabled = true;
 
+        // Hide or show reading section based on whether we have passage content
+        if (!this.passage || this.passage.trim() === '') {
+            readingSection.classList.add('hidden');
+        } else {
+            readingSection.classList.remove('hidden');
+        }
+
         // Generate vocabulary matching if vocabulary exists
         this.generateVocabMatching();
 
         // Generate cloze section if cloze exists
         this.generateCloze();
 
-        // Use all questions from questionBank (already filtered by parseQuestions if needed)
-        this.shuffleArray(this.questionBank);
-        this.currentQuestions = this.questionBank; // Use all questions since they're already filtered
-        this.totalQuestions = this.questionBank.length;
+        // Check if we should enable the score button right away (if only cloze exists)
+        this.checkInitialCompletion();
+
+        // Hide or show questions section based on whether we have questions
+        if (this.questionBank.length === 0) {
+            questionsSection.classList.add('hidden');
+            this.totalQuestions = 0; // No questions available
+        } else {
+            questionsSection.classList.remove('hidden');
+            
+            // Use all questions from questionBank (already filtered by parseQuestions if needed)
+            this.shuffleArray(this.questionBank);
+            this.currentQuestions = this.questionBank; // Use all questions since they're already filtered
+            this.totalQuestions = this.questionBank.length;
+            
+            this.currentQuestions.forEach((q, index) => {
+                questionsSection.appendChild(this.createQuestionBlock(q, index));
+            });
+        }
+    }
+
+    checkInitialCompletion() {
+        // If there's only cloze content and no vocab or questions, enable score button immediately
+        const hasVocab = Object.keys(this.vocabulary).length > 0;
+        const hasQuestions = this.questionBank.length > 0;
+        const hasCloze = this.clozeWords.length > 0;
         
-        this.currentQuestions.forEach((q, index) => {
-            questionsSection.appendChild(this.createQuestionBlock(q, index));
-        });
+        if (hasCloze && !hasVocab && !hasQuestions) {
+            // Only cloze exists - score button should be enabled when all cloze answers are filled
+            // This will be handled by handleClozeAnswer, so we don't need to do anything here
+        } else if (!hasCloze && !hasVocab && !hasQuestions) {
+            // No interactive content at all - hide the score button
+            const checkScoreContainer = this.shadowRoot.getElementById('checkScoreContainer');
+            checkScoreContainer.classList.add('hidden');
+        }
     }
 
     checkAllQuestionsAnswered() {
