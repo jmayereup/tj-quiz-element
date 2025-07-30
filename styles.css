@@ -694,3 +694,22 @@ legend {
         padding: 0.25em 0.375em;
     }
 }
+
+/* Section headers for multiple vocab/cloze sections */
+.vocab-section-header,
+.cloze-section-header {
+    margin: 1.5rem 0 1rem 0;
+    font-size: 1.1em;
+    font-weight: 600;
+    color: var(--primary-color);
+    border-bottom: 2px solid var(--primary-color);
+    padding-bottom: 0.5rem;
+}
+
+.cloze-section-wrapper {
+    margin-bottom: 2rem;
+}
+
+.cloze-section-wrapper:last-child {
+    margin-bottom: 0;
+}

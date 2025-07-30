@@ -17,31 +17,42 @@
 <body>
     <h1>Multiple Quiz Elements Demo</h1>
     
-    <h2>Quiz 1: Cloze Exercise</h2>
+    <h2>Quiz 1: Multiple Cloze Exercises</h2>
     <div class="quiz-container">
         <tj-quiz-element>
-        ---cloze-2
-        This fundamental *change* in Little *Red* Riding Hood's character has a ripple effect.
+        Multiple Cloze Test
+        ---cloze-1
+        This fundamental *change* in Little Red Riding Hood's character.
+        ---cloze-1
+        The *quick* brown fox jumps over the lazy dog.
         </tj-quiz-element>
     </div>
 
-    <h2>Quiz 2: Vocabulary Matching</h2>
+    <h2>Quiz 2: Multiple Vocabulary Sets</h2>
     <div class="quiz-container">
         <tj-quiz-element>
-        ---vocab-3
-        change: transformation, character: personality, ripple: wave effect
+        Multiple Vocabulary Test
+        ---vocab-2
+        change: transformation, character: personality, fundamental: basic
+        ---vocab-2
+        quick: fast, brown: color, lazy: not active
         </tj-quiz-element>
     </div>
 
-    <h2>Quiz 3: Mixed Content</h2>
+    <h2>Quiz 3: Mixed Multiple Sections</h2>
     <div class="quiz-container">
         <tj-quiz-element>
+        Complete Mixed Test
         ---text
-        The quick brown fox jumps over the lazy dog.
+        The quick brown fox jumps over the lazy dog. This sentence contains many letters.
+        ---vocab-2
+        quick: fast, sentence: group of words
         ---cloze-1
         The *quick* brown fox jumps.
-        ---vocab-2
-        quick: fast, brown: color
+        ---vocab-1
+        brown: color, fox: animal
+        ---cloze-1
+        This *sentence* contains many letters.
         </tj-quiz-element>
     </div>
 

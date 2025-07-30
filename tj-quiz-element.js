@@ -6,7 +6,6 @@ class TjQuizElement extends HTMLElement {
         this.attachShadow({ mode: 'open' });
         this.questionBank = [];
         this.currentQuestions = [];
-        this.vocabulary = {};
         this.score = 0;
         this.questionsAnswered = 0;
         this.questionsToDisplay = 5;
@@ -17,13 +16,12 @@ class TjQuizElement extends HTMLElement {
         this.submissionUrl = config.submissionUrl;
         this.title = '';
         this.passage = '';
-        this.vocabulary = {};
-        this.vocabUserChoices = {}; // Track what user selected for each word
+        this.vocabularySections = []; // Array of vocabulary sections
+        this.vocabUserChoices = {}; // Track what user selected for each word (section-word key)
         this.vocabScore = 0;
         this.vocabSubmitted = false; // Track if vocab answers have been submitted
-        this.clozeText = '';
-        this.clozeWords = []; // Words that can be removed (from asterisks)
-        this.clozeAnswers = {}; // User's answers for each blank
+        this.clozeSections = []; // Array of cloze sections
+        this.clozeAnswers = {}; // User's answers for each blank (section-blank key)
         this.clozeScore = 0;
         this.clozeSubmitted = false;
     }
@@ -150,7 +148,8 @@ class TjQuizElement extends HTMLElement {
         console.log('Parsed:', {
             title: this.title,
             passageLength: this.passage.length,
-            vocabularyCount: Object.keys(this.vocabulary).length,
+            vocabularySections: this.vocabularySections.length,
+            clozeSections: this.clozeSections.length,
             audioSrc: this.audioSrc,
             questionsCount: this.questionBank.length
         });
@@ -170,17 +169,24 @@ class TjQuizElement extends HTMLElement {
             }
         });
         
+        let finalVocab;
         // If maxWords is specified, randomly select that many words
         if (maxWords && Object.keys(allVocab).length > maxWords) {
             const vocabEntries = Object.entries(allVocab);
             this.shuffleArray(vocabEntries);
             const selectedEntries = vocabEntries.slice(0, maxWords);
-            this.vocabulary = Object.fromEntries(selectedEntries);
+            finalVocab = Object.fromEntries(selectedEntries);
         } else {
-            this.vocabulary = allVocab;
+            finalVocab = allVocab;
         }
         
-        console.log('Vocabulary parsed. Total words:', Object.keys(this.vocabulary).length, 'Max words:', maxWords);
+        // Add this vocabulary section to the array
+        this.vocabularySections.push({
+            vocabulary: finalVocab,
+            sectionId: this.vocabularySections.length
+        });
+        
+        console.log('Vocabulary section parsed. Words in this section:', Object.keys(finalVocab).length, 'Max words:', maxWords);
     }
 
     parseAudio(audioSection) {
@@ -196,21 +202,27 @@ class TjQuizElement extends HTMLElement {
     parseCloze(clozeSection, maxBlanks = null) {
         if (!clozeSection) return;
         
-        this.clozeText = clozeSection;
-        
         // Extract words marked with asterisks
         const asteriskMatches = clozeSection.match(/\*([^*]+)\*/g);
+        let clozeWords = [];
         if (asteriskMatches) {
-            this.clozeWords = asteriskMatches.map(match => match.replace(/\*/g, ''));
+            clozeWords = asteriskMatches.map(match => match.replace(/\*/g, ''));
             
             // If maxBlanks is specified, randomly select that many words to remove
-            if (maxBlanks && this.clozeWords.length > maxBlanks) {
-                this.shuffleArray(this.clozeWords);
-                this.clozeWords = this.clozeWords.slice(0, maxBlanks);
+            if (maxBlanks && clozeWords.length > maxBlanks) {
+                this.shuffleArray(clozeWords);
+                clozeWords = clozeWords.slice(0, maxBlanks);
             }
         }
         
-        console.log('Cloze parsed. Total words available:', asteriskMatches ? asteriskMatches.length : 0, 'Words to remove:', this.clozeWords.length, 'Max blanks:', maxBlanks);
+        // Add this cloze section to the array
+        this.clozeSections.push({
+            text: clozeSection,
+            words: clozeWords,
+            sectionId: this.clozeSections.length
+        });
+        
+        console.log('Cloze section parsed. Total words available:', asteriskMatches ? asteriskMatches.length : 0, 'Words to remove:', clozeWords.length, 'Max blanks:', maxBlanks);
     }
 
     parseQuestions(questionsSection, maxQuestions = null) {
@@ -268,7 +280,7 @@ class TjQuizElement extends HTMLElement {
         const vocabSection = this.shadowRoot.getElementById('vocabSection');
         const vocabGrid = this.shadowRoot.getElementById('vocabGrid');
         
-        if (Object.keys(this.vocabulary).length === 0) {
+        if (this.vocabularySections.length === 0) {
             vocabSection.classList.add('hidden');
             return;
         }
@@ -281,72 +293,97 @@ class TjQuizElement extends HTMLElement {
         this.vocabUserChoices = {};
         this.vocabSubmitted = false;
         
-        const words = Object.keys(this.vocabulary);
-        const allDefinitions = Object.values(this.vocabulary);
-        
-        // Shuffle definitions to make it more challenging
-        this.shuffleArray(allDefinitions);
-        
-        // Create definition header row
-        const headerRow = document.createElement('div');
-        headerRow.className = 'vocab-grid-header';
-        
-        // Word column header
-        const wordHeaderCell = document.createElement('div');
-        wordHeaderCell.className = 'vocab-grid-header-cell';
-        wordHeaderCell.textContent = 'Word';
-        headerRow.appendChild(wordHeaderCell);
-        
-        // Definition header cells
-        allDefinitions.forEach((definition) => {
-            const headerCell = document.createElement('div');
-            headerCell.className = 'vocab-grid-header-cell';
-            headerCell.textContent = definition;
-            headerRow.appendChild(headerCell);
-        });
-        
-        vocabGrid.appendChild(headerRow);
-        
-        // Create word rows
-        words.forEach((word, wordIndex) => {
-            const wordRow = document.createElement('div');
-            wordRow.className = 'vocab-grid-row';
+        // Generate a section for each vocabulary set
+        this.vocabularySections.forEach((vocabSectionData, sectionIndex) => {
+            const { vocabulary, sectionId } = vocabSectionData;
             
-            // Word cell
-            const wordCell = document.createElement('div');
-            wordCell.className = 'vocab-grid-cell vocab-word-cell';
-            wordCell.textContent = word;
-            wordRow.appendChild(wordCell);
+            // Create section header if there are multiple vocabulary sections
+            if (this.vocabularySections.length > 1) {
+                const sectionHeader = document.createElement('div');
+                sectionHeader.className = 'vocab-section-header';
+                sectionHeader.innerHTML = `<h4>Vocabulary Set ${sectionIndex + 1}</h4>`;
+                vocabGrid.appendChild(sectionHeader);
+            }
             
-            // Radio button cells for each definition
-            allDefinitions.forEach((definition, defIndex) => {
-                const optionCell = document.createElement('div');
-                optionCell.className = 'vocab-grid-cell vocab-option-cell';
-                
-                const radioContainer = document.createElement('div');
-                radioContainer.className = 'vocab-radio-container';
-                
-                const radio = document.createElement('input');
-                radio.type = 'radio';
-                radio.name = `vocab-${wordIndex}`;
-                radio.value = definition;
-                radio.id = `vocab-${wordIndex}-${defIndex}`;
-                
-                radioContainer.appendChild(radio);
-                optionCell.appendChild(radioContainer);
-                wordRow.appendChild(optionCell);
+            const words = Object.keys(vocabulary);
+            const allDefinitions = Object.values(vocabulary);
+            
+            // Shuffle definitions to make it more challenging
+            this.shuffleArray(allDefinitions);
+            
+            // Create table for this vocabulary section
+            const tableContainer = document.createElement('div');
+            tableContainer.className = 'vocab-grid-table';
+            
+            // Create definition header row
+            const headerRow = document.createElement('div');
+            headerRow.className = 'vocab-grid-header';
+            
+            // Word column header
+            const wordHeaderCell = document.createElement('div');
+            wordHeaderCell.className = 'vocab-grid-header-cell';
+            wordHeaderCell.textContent = 'Word';
+            headerRow.appendChild(wordHeaderCell);
+            
+            // Definition header cells
+            allDefinitions.forEach((definition) => {
+                const headerCell = document.createElement('div');
+                headerCell.className = 'vocab-grid-header-cell';
+                headerCell.textContent = definition;
+                headerRow.appendChild(headerCell);
             });
             
-            vocabGrid.appendChild(wordRow);
+            tableContainer.appendChild(headerRow);
+            
+            // Create word rows
+            words.forEach((word, wordIndex) => {
+                const wordRow = document.createElement('div');
+                wordRow.className = 'vocab-grid-row';
+                
+                // Word cell
+                const wordCell = document.createElement('div');
+                wordCell.className = 'vocab-grid-cell vocab-word-cell';
+                wordCell.textContent = word;
+                wordRow.appendChild(wordCell);
+                
+                // Radio button cells for each definition
+                allDefinitions.forEach((definition, defIndex) => {
+                    const optionCell = document.createElement('div');
+                    optionCell.className = 'vocab-grid-cell vocab-option-cell';
+                    
+                    const radioContainer = document.createElement('div');
+                    radioContainer.className = 'vocab-radio-container';
+                    
+                    const radio = document.createElement('input');
+                    radio.type = 'radio';
+                    radio.name = `vocab-${sectionId}-${wordIndex}`;
+                    radio.value = definition;
+                    radio.id = `vocab-${sectionId}-${wordIndex}-${defIndex}`;
+                    
+                    radioContainer.appendChild(radio);
+                    optionCell.appendChild(radioContainer);
+                    wordRow.appendChild(optionCell);
+                });
+                
+                tableContainer.appendChild(wordRow);
+            });
+            
+            vocabGrid.appendChild(tableContainer);
+            
+            // Add spacing between sections if there are multiple
+            if (sectionIndex < this.vocabularySections.length - 1) {
+                const spacer = document.createElement('div');
+                spacer.style.marginBottom = '2rem';
+                vocabGrid.appendChild(spacer);
+            }
         });
     }
 
     generateCloze() {
         const clozeSection = this.shadowRoot.getElementById('clozeSection');
-        const clozeWordBank = this.shadowRoot.getElementById('clozeWordBank');
-        const clozeTextElement = this.shadowRoot.getElementById('clozeText');
+        const clozeContainer = this.shadowRoot.getElementById('clozeContainer');
         
-        if (!this.clozeText || this.clozeWords.length === 0) {
+        if (this.clozeSections.length === 0) {
             clozeSection.classList.add('hidden');
             return;
         }
@@ -358,53 +395,105 @@ class TjQuizElement extends HTMLElement {
         this.clozeAnswers = {};
         this.clozeSubmitted = false;
         
-        // Create word bank
-        clozeWordBank.innerHTML = `
-            <div class="cloze-bank-title">Word Bank</div>
-            <div class="cloze-bank-words">
-                ${this.clozeWords.map(word => `<span class="cloze-bank-word">${word}</span>`).join('')}
-            </div>
-        `;
+        // Clear the container and rebuild with all cloze sections
+        if (!clozeContainer) {
+            // Create container if it doesn't exist
+            const newContainer = document.createElement('div');
+            newContainer.id = 'clozeContainer';
+            clozeSection.appendChild(newContainer);
+        }
         
-        // Create text with blanks
-        let textWithBlanks = this.clozeText;
-        let blankIndex = 0;
+        const container = this.shadowRoot.getElementById('clozeContainer');
+        container.innerHTML = '';
         
-        // Replace selected words with blanks
-        this.clozeWords.forEach(word => {
-            const regex = new RegExp(`\\*${word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\*`, 'gi');
-            textWithBlanks = textWithBlanks.replace(regex, () => {
-                const inputHtml = `<input type="text" class="cloze-blank" data-answer="${word.toLowerCase()}" data-blank-index="${blankIndex}" autocomplete="off" spellcheck="false" placeholder="____" title="Fill in the blank">`;
-                blankIndex++;
-                return inputHtml;
+        // Generate each cloze section
+        this.clozeSections.forEach((clozeData, sectionIndex) => {
+            const { text, words, sectionId } = clozeData;
+            
+            // Create section wrapper
+            const sectionWrapper = document.createElement('div');
+            sectionWrapper.className = 'cloze-section-wrapper';
+            
+            // Add section header if there are multiple cloze sections
+            if (this.clozeSections.length > 1) {
+                const sectionHeader = document.createElement('h4');
+                sectionHeader.className = 'cloze-section-header';
+                sectionHeader.textContent = `Fill in the Blanks - Section ${sectionIndex + 1}`;
+                sectionWrapper.appendChild(sectionHeader);
+            }
+            
+            // Create word bank for this section
+            const wordBank = document.createElement('div');
+            wordBank.className = 'cloze-word-bank';
+            wordBank.innerHTML = `
+                <div class="cloze-bank-title">Word Bank</div>
+                <div class="cloze-bank-words">
+                    ${words.map(word => `<span class="cloze-bank-word">${word}</span>`).join('')}
+                </div>
+            `;
+            sectionWrapper.appendChild(wordBank);
+            
+            // Create text with blanks
+            const textElement = document.createElement('div');
+            textElement.className = 'cloze-text';
+            
+            let textWithBlanks = text;
+            let blankIndex = 0;
+            
+            // Replace selected words with blanks
+            words.forEach(word => {
+                const regex = new RegExp(`\\*${word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\*`, 'gi');
+                textWithBlanks = textWithBlanks.replace(regex, () => {
+                    const inputHtml = `<input type="text" class="cloze-blank" data-answer="${word.toLowerCase()}" data-section-id="${sectionId}" data-blank-index="${blankIndex}" autocomplete="off" spellcheck="false" placeholder="____" title="Fill in the blank">`;
+                    blankIndex++;
+                    return inputHtml;
+                });
             });
+            
+            // Remove remaining asterisks from words not selected for blanks
+            textWithBlanks = textWithBlanks.replace(/\*([^*]+)\*/g, '$1');
+            
+            textElement.innerHTML = textWithBlanks;
+            sectionWrapper.appendChild(textElement);
+            
+            // Add spacing between sections if there are multiple
+            if (sectionIndex < this.clozeSections.length - 1) {
+                sectionWrapper.style.marginBottom = '2rem';
+            }
+            
+            container.appendChild(sectionWrapper);
         });
-        
-        // Remove remaining asterisks from words not selected for blanks
-        textWithBlanks = textWithBlanks.replace(/\*([^*]+)\*/g, '$1');
-        
-        clozeTextElement.innerHTML = textWithBlanks;
     }
 
     handleVocabAnswer(e) {
         if (e.target.type !== 'radio' || !e.target.name.startsWith('vocab-')) return;
 
         const radio = e.target;
-        const wordIndex = parseInt(radio.name.split('-')[1]);
-        const words = Object.keys(this.vocabulary);
+        const nameParts = radio.name.split('-');
+        const sectionId = parseInt(nameParts[1]);
+        const wordIndex = parseInt(nameParts[2]);
+        
+        // Find the vocabulary section and word
+        const vocabSection = this.vocabularySections.find(vs => vs.sectionId === sectionId);
+        if (!vocabSection) return;
+        
+        const words = Object.keys(vocabSection.vocabulary);
         const word = words[wordIndex];
         const selectedDefinition = radio.value;
         
-        // Store the user's choice
-        this.vocabUserChoices[word] = selectedDefinition;
+        // Store the user's choice with section-word key
+        const key = `${sectionId}-${word}`;
+        this.vocabUserChoices[key] = selectedDefinition;
         
         // Check if all vocabulary questions are answered
-        const allAnswered = Object.keys(this.vocabUserChoices).length === Object.keys(this.vocabulary).length;
+        const totalVocabWords = this.vocabularySections.reduce((total, section) => 
+            total + Object.keys(section.vocabulary).length, 0);
+        const answeredVocabWords = Object.keys(this.vocabUserChoices).length;
         
-        if (allAnswered) {
+        if (answeredVocabWords === totalVocabWords) {
             // Check if all sections are complete to enable score button
             const allQuestionsAnswered = this.questionBank.length === 0 || this.checkAllQuestionsAnswered();
-            const allClozeAnswered = this.clozeWords.length === 0 || Object.keys(this.clozeAnswers).filter(key => this.clozeAnswers[key].length > 0).length === this.clozeWords.length;
+            const allClozeAnswered = this.checkAllClozeAnswered();
             
             if (allQuestionsAnswered && allClozeAnswered) {
                 const checkScoreButton = this.shadowRoot.getElementById('checkScoreButton');
@@ -418,18 +507,19 @@ class TjQuizElement extends HTMLElement {
 
         const input = e.target;
         const correctAnswer = input.dataset.answer;
+        const sectionId = input.dataset.sectionId;
+        const blankIndex = input.dataset.blankIndex;
         const userAnswer = input.value.trim().toLowerCase();
         
-        // Store the user's answer
-        this.clozeAnswers[input.dataset.blankIndex] = userAnswer;
+        // Store the user's answer with section-blank key
+        const key = `${sectionId}-${blankIndex}`;
+        this.clozeAnswers[key] = userAnswer;
         
         // Check if all cloze blanks are filled
-        const totalBlanks = this.clozeWords.length;
-        const filledBlanks = Object.keys(this.clozeAnswers).filter(key => this.clozeAnswers[key].length > 0).length;
-        
-        if (filledBlanks === totalBlanks) {
+        if (this.checkAllClozeAnswered()) {
             // Check if all sections are complete to enable score button
-            const vocabComplete = Object.keys(this.vocabulary).length === 0 || Object.keys(this.vocabUserChoices).length === Object.keys(this.vocabulary).length;
+            const vocabComplete = this.vocabularySections.length === 0 || 
+                Object.keys(this.vocabUserChoices).length === this.getTotalVocabWords();
             const questionsComplete = this.questionBank.length === 0 || this.checkAllQuestionsAnswered();
             
             if (vocabComplete && questionsComplete) {
@@ -439,40 +529,58 @@ class TjQuizElement extends HTMLElement {
         }
     }
 
+    checkAllClozeAnswered() {
+        const totalBlanks = this.clozeSections.reduce((total, section) => 
+            total + section.words.length, 0);
+        const filledBlanks = Object.keys(this.clozeAnswers).filter(key => 
+            this.clozeAnswers[key].length > 0).length;
+        return filledBlanks === totalBlanks;
+    }
+
+    getTotalVocabWords() {
+        return this.vocabularySections.reduce((total, section) => 
+            total + Object.keys(section.vocabulary).length, 0);
+    }
+
     showVocabScore() {
         // Calculate vocabulary score by comparing user choices to correct answers
         this.vocabScore = 0;
-        const totalVocab = Object.keys(this.vocabulary).length;
+        const totalVocab = this.getTotalVocabWords();
         
-        // Show feedback for each vocabulary question
-        const words = Object.keys(this.vocabulary);
-        words.forEach((word, wordIndex) => {
-            const userDefinition = this.vocabUserChoices[word];
-            const correctDefinition = this.vocabulary[word];
-            const isCorrect = userDefinition === correctDefinition;
+        // Show feedback for each vocabulary section
+        this.vocabularySections.forEach((vocabSection, sectionIndex) => {
+            const { vocabulary, sectionId } = vocabSection;
+            const words = Object.keys(vocabulary);
             
-            if (isCorrect) {
-                this.vocabScore++;
-            }
-            
-            // Find the selected radio button and its cell
-            const radioName = `vocab-${wordIndex}`;
-            const selectedRadio = this.shadowRoot.querySelector(`input[name="${radioName}"]:checked`);
-            
-            if (selectedRadio) {
-                // Disable all radio buttons for this word
-                const allRadios = this.shadowRoot.querySelectorAll(`input[name="${radioName}"]`);
-                allRadios.forEach(radio => {
-                    radio.disabled = true;
-                    const cell = radio.closest('.vocab-option-cell');
-                    
-                    if (radio.value === correctDefinition) {
-                        cell.classList.add('correct');
-                    } else if (radio.checked) {
-                        cell.classList.add('incorrect');
-                    }
-                });
-            }
+            words.forEach((word, wordIndex) => {
+                const key = `${sectionId}-${word}`;
+                const userDefinition = this.vocabUserChoices[key];
+                const correctDefinition = vocabulary[word];
+                const isCorrect = userDefinition === correctDefinition;
+                
+                if (isCorrect) {
+                    this.vocabScore++;
+                }
+                
+                // Find the selected radio button and its cell
+                const radioName = `vocab-${sectionId}-${wordIndex}`;
+                const selectedRadio = this.shadowRoot.querySelector(`input[name="${radioName}"]:checked`);
+                
+                if (selectedRadio) {
+                    // Disable all radio buttons for this word
+                    const allRadios = this.shadowRoot.querySelectorAll(`input[name="${radioName}"]`);
+                    allRadios.forEach(radio => {
+                        radio.disabled = true;
+                        const cell = radio.closest('.vocab-option-cell');
+                        
+                        if (radio.value === correctDefinition) {
+                            cell.classList.add('correct');
+                        } else if (radio.checked) {
+                            cell.classList.add('incorrect');
+                        }
+                    });
+                }
+            });
         });
         
         const vocabScoreElement = this.shadowRoot.getElementById('vocabScore');
@@ -484,7 +592,8 @@ class TjQuizElement extends HTMLElement {
     showClozeScore() {
         // Calculate cloze score by comparing user answers to correct answers
         this.clozeScore = 0;
-        const totalBlanks = this.clozeWords.length;
+        const totalBlanks = this.clozeSections.reduce((total, section) => 
+            total + section.words.length, 0);
         
         // Show feedback for each cloze blank
         const clozeInputs = this.shadowRoot.querySelectorAll('.cloze-blank');
@@ -693,9 +802,9 @@ class TjQuizElement extends HTMLElement {
 
     checkInitialCompletion() {
         // If there's only cloze content and no vocab or questions, enable score button immediately
-        const hasVocab = Object.keys(this.vocabulary).length > 0;
+        const hasVocab = this.vocabularySections.length > 0;
         const hasQuestions = this.questionBank.length > 0;
-        const hasCloze = this.clozeWords.length > 0;
+        const hasCloze = this.clozeSections.length > 0;
         
         if (hasCloze && !hasVocab && !hasQuestions) {
             // Only cloze exists - score button should be enabled when all cloze answers are filled
@@ -759,9 +868,9 @@ class TjQuizElement extends HTMLElement {
         }
         
         // Enable check score button when all questions are answered and vocabulary is complete (if any)
-        const vocabComplete = Object.keys(this.vocabulary).length === 0 || Object.keys(this.vocabUserChoices).length === Object.keys(this.vocabulary).length;
+        const vocabComplete = this.vocabularySections.length === 0 || Object.keys(this.vocabUserChoices).length === this.getTotalVocabWords();
         const questionsComplete = this.checkAllQuestionsAnswered();
-        const clozeComplete = this.clozeWords.length === 0 || Object.keys(this.clozeAnswers).filter(key => this.clozeAnswers[key].length > 0).length === this.clozeWords.length;
+        const clozeComplete = this.checkAllClozeAnswered();
         
         if (vocabComplete && questionsComplete && clozeComplete) {
             this.shadowRoot.getElementById('checkScoreButton').disabled = false;
@@ -775,12 +884,12 @@ class TjQuizElement extends HTMLElement {
 
     showFinalScore() {
         // Calculate and show vocabulary score/feedback if vocabulary exists and hasn't been scored yet
-        if (Object.keys(this.vocabulary).length > 0 && !this.vocabSubmitted) {
+        if (this.vocabularySections.length > 0 && !this.vocabSubmitted) {
             this.showVocabScore();
         }
         
         // Calculate and show cloze score if cloze exists and hasn't been scored yet
-        if (this.clozeWords.length > 0 && !this.clozeSubmitted) {
+        if (this.clozeSections.length > 0 && !this.clozeSubmitted) {
             this.showClozeScore();
         }
         
@@ -794,8 +903,8 @@ class TjQuizElement extends HTMLElement {
         const postScoreActions = this.shadowRoot.getElementById('postScoreActions');
         
         // Calculate total score (vocabulary + cloze + questions)
-        const vocabTotal = Object.keys(this.vocabulary).length;
-        const clozeTotal = this.clozeWords.length;
+        const vocabTotal = this.getTotalVocabWords();
+        const clozeTotal = this.clozeSections.reduce((total, section) => total + section.words.length, 0);
         const questionTotal = this.totalQuestions;
         const totalPossible = vocabTotal + clozeTotal + questionTotal;
         const totalEarned = this.vocabScore + this.clozeScore + this.score;
