@@ -372,14 +372,14 @@ legend {
 }
 
 .score-main {
-    font-size: 3rem;
+    font-size: 3em;
     font-weight: 700;
     line-height: 1;
     margin-bottom: 0.5rem;
 }
 
 .score-percentage {
-    font-size: 1.5rem;
+    font-size: 1.5em;
     font-weight: 600;
     opacity: 0.8;
     margin-bottom: 1rem;
@@ -400,7 +400,7 @@ legend {
 }
 
 .score-label {
-    font-size: 0.9rem;
+    font-size: 0.9em;
     font-weight: 500;
     opacity: 0.7;
     text-transform: uppercase;
@@ -408,17 +408,17 @@ legend {
 }
 
 .score-value {
-    font-size: 1.25rem;
+    font-size: 1.25em;
     font-weight: 600;
 }
 
 @media (max-width: 768px) {
     .score-main {
-        font-size: 2.5rem;
+        font-size: 2.5em;
     }
     
     .score-percentage {
-        font-size: 1.25rem;
+        font-size: 1.25em;
     }
     
     .score-breakdown {
@@ -568,7 +568,7 @@ legend {
 
 @media (max-width: 768px) {
     .vocab-grid-table {
-        font-size: 0.875rem;
+        font-size: 0.875em;
     }
     
     .vocab-grid-cell {
@@ -577,18 +577,19 @@ legend {
     
     .vocab-grid-header-cell {
         padding: 0.75rem 0.5rem;
-        font-size: 0.8rem;
+        font-size: 0.8em;
     }
 }
 
-.vocab-score {
-    text-align: center;
+.vocab-grid-header-cell {
+    display: table-cell;
+    padding: 1rem;
     font-weight: 600;
-    margin-top: 1rem;
-    font-size: 1.1em;
+    text-align: center;
+    border-right: 1px solid rgba(255, 255, 255, 0.2);
+    font-size: 0.8em;
 }
 
-/* Cloze (Fill in the Blanks) Styles */
 .cloze-word-bank {
     background-color: var(--input-bg-light);
     border: 1px solid var(--border-color);
@@ -605,7 +606,7 @@ legend {
     font-weight: 600;
     margin-bottom: 0.75rem;
     color: var(--text-primary);
-    font-size: 0.9rem;
+    font-size: 0.9em;
     text-transform: uppercase;
     letter-spacing: 0.05em;
 }
@@ -621,7 +622,7 @@ legend {
     color: white;
     padding: 0.5rem 0.75rem;
     border-radius: 0.25rem;
-    font-size: 0.9rem;
+    font-size: 0.9em;
     font-weight: 500;
     cursor: default;
     user-select: none;
@@ -629,7 +630,7 @@ legend {
 
 .cloze-text {
     line-height: 1.8;
-    font-size: 1.1rem;
+    font-size: 1.1em;
     color: var(--text-primary);
 }
 
@@ -681,15 +682,15 @@ legend {
     
     .cloze-bank-word {
         padding: 0.375rem 0.5rem;
-        font-size: 0.8rem;
+        font-size: 0.8em;
     }
     
     .cloze-text {
-        font-size: 1rem;
+        font-size: 1em;
     }
     
     .cloze-blank {
         min-width: 80px;
-        padding: 0.25rem 0.375rem;
+        padding: 0.25em 0.375em;
     }
 }
