@@ -233,7 +233,7 @@ class TjQuizElement extends HTMLElement {
         const tempQuestionBank = [];
         
         for (const line of lines) {
-            if (line.startsWith('Q:')) {
+            if (line.startsWith('Q:') || line.startsWith('Q.')) {
                 // New question
                 if (currentQuestion) {
                     tempQuestionBank.push(currentQuestion);
