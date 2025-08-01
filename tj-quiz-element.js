@@ -1,6 +1,10 @@
 import { config } from './config.js';
 
 class TjQuizElement extends HTMLElement {
+    static get observedAttributes() {
+        return ['submission-url'];
+    }
+    
     constructor() {
         super();
         this.attachShadow({ mode: 'open' });
@@ -13,7 +17,7 @@ class TjQuizElement extends HTMLElement {
         this.audioPlayer = null;
         this.utterance = null;
         this.audioSrc = '';
-        this.submissionUrl = config.submissionUrl;
+        this.submissionUrl = ''; // Can be set via attribute or property
         this.title = '';
         this.passage = '';
         this.vocabularySections = []; // Array of vocabulary sections
@@ -26,9 +30,21 @@ class TjQuizElement extends HTMLElement {
         this.clozeSubmitted = false;
     }
 
+    attributeChangedCallback(name, oldValue, newValue) {
+        if (name === 'submission-url') {
+            this.submissionUrl = newValue;
+        }
+    }
+
     async connectedCallback() {
         // Store the original content before rendering shadow DOM
         this.originalContent = this.textContent;
+        
+        // Get submission URL from attribute if provided
+        if (this.hasAttribute('submission-url')) {
+            this.submissionUrl = this.getAttribute('submission-url');
+        }
+        
         await this.loadTemplate();
         this.parseContent();
         this.setupEventListeners();
@@ -1036,10 +1052,12 @@ class TjQuizElement extends HTMLElement {
         tryAgainButton.disabled = true;
         sendButton.textContent = 'Sending...';
         
-        const vocabTotal = Object.keys(this.vocabulary).length;
-        const questionTotal = this.totalQuestions;
-        const totalPossible = vocabTotal + questionTotal;
-        const totalEarned = this.vocabScore + this.score;
+        // Calculate totals for all sections
+        const vocabTotal = this.getTotalVocabWords();
+        const clozeTotal = this.clozeSections.reduce((total, section) => total + section.words.length, 0);
+        const questionTotal = this.questionBank.length;
+        const totalPossible = vocabTotal + clozeTotal + questionTotal;
+        const totalEarned = this.vocabScore + this.clozeScore + this.score;
         
         const studentData = {
             quizName: this.title,
@@ -1050,6 +1068,8 @@ class TjQuizElement extends HTMLElement {
             total: totalPossible,
             vocabScore: this.vocabScore,
             vocabTotal: vocabTotal,
+            clozeScore: this.clozeScore,
+            clozeTotal: clozeTotal,
             questionScore: this.score,
             questionTotal: questionTotal,
             timestamp: new Date().toISOString()

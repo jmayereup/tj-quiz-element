@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Complete TJ Quiz Element Test</title>
+</head>
+<body>
+    <h1>TJ Quiz Element - Complete Test</h1>
+    
+    <tj-quiz-element submission-url="https://httpbin.org/post">
+        ---vocab
+        limit: 3
+        apple | pomme | https://example.com/apple.mp3
+        banana | banane | https://example.com/banana.mp3
+        cherry | cerise | https://example.com/cherry.mp3
+        dog | chien | https://example.com/dog.mp3
+        cat | chat | https://example.com/cat.mp3
+
+        ---cloze
+        limit: 2
+        The quick [brown] fox jumps over the lazy dog.
+        She bought [three] apples at the [market].
+        I like to [read] books in the [evening].
+
+        ---questions
+        limit: 2
+        Q: What is the capital of France?
+        A: Paris
+
+        Q. What is 2 + 2?
+        A. 4
+
+        Q: What color is the sky?
+        A: Blue
+
+        Q. Who wrote Romeo and Juliet?
+        A. Shakespeare
+    </tj-quiz-element>
+
+    <script type="module" src="tj-quiz-element.js"></script>
+</body>
+</html>
