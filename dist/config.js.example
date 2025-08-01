@@ -1,0 +1,6 @@
+// Configuration file for TJ Quiz Element
+// Copy this file to config.js and update with your actual values
+export const config = {
+    submissionUrl: 'https://your-server.com/submit-quiz' // Replace with your actual submission endpoint
+    
+};

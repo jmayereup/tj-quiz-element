@@ -1,2 +1,27 @@
+# Environment and config files
 .env
 config.js
+
+# Development and test files
+test-*.html
+debug-*.html
+
+# Distribution folder (optional - you might want to include this)
+# dist/
+
+# Node modules (if using npm for development)
+node_modules/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
