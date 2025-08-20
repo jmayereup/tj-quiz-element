@@ -67,6 +67,20 @@ A: Very large in size
 
 The content is divided into labeled sections separated by `---`:
 
+## Question Types
+
+The element supports several built-in section/question types. Use `---type` or `---type-N` (to limit N items) as the section header.
+
+- `text` — The reading passage. Use `---text` and put your passage below the header. This section is optional.
+- `vocab` / `vocab-N` — Vocabulary matching. Provide comma-separated `word: definition` pairs. The element generates a matching grid where students choose the correct definition for each word. Adding `-N` (for example `---vocab-4`) randomly limits how many words are shown from that section.
+- `cloze` / `cloze-N` — Fill-in-the-blank (cloze) exercises. Surround words to be blanked with asterisks in the text (for example `The *quick* fox`). The element turns selected asterisk-marked words into input blanks and shows a word bank. Use `-N` to limit how many blanks are chosen.
+- `audio` — Audio support. Use `---audio` and include `audio-src = URL` to play an audio file; if omitted or invalid, the element falls back to browser text-to-speech (TTS). You may also include `submission-url = ...` here to provide a submission endpoint.
+- `questions` / `questions-N` — Multiple-choice questions. Use `Q:` to start a question, `A:` lines for answer options, mark the correct answer with `[correct]`, and optionally include `E:` for an explanation. The section accepts `Q:` or `Q.` prefixes. Use `-N` to limit how many questions are randomly selected.
+
+Notes:
+- Multiple sections of the same type are supported (for example several `---vocab` or `---cloze` sections).
+- When multiple interactive section types are present (vocab, cloze, questions) the final score is a combined total across those sections.
+
 ### Title Section
 - **First line**: The title of the reading activity
 

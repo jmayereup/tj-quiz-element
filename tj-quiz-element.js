@@ -9,6 +9,9 @@ class TjQuizElement extends HTMLElement {
         super();
         this.attachShadow({ mode: 'open' });
         this.questionBank = [];
+    this.passages = []; // support multiple text sections
+    this.questionGroups = []; // questions grouped by preceding text section (sectionId) or null for global
+    this.orderedSections = []; // preserve original section order
         this.currentQuestions = [];
         this.score = 0;
         this.questionsAnswered = 0;
@@ -121,37 +124,63 @@ class TjQuizElement extends HTMLElement {
             }
         }
         
-        // Parse each labeled section
+        // Parse each labeled section. Support multiple text sections and associate subsequent questions with the most recent text.
+        let lastSectionType = null;
+        let lastTextSectionId = null;
         for (let i = 1; i < sections.length; i++) {
             const section = sections[i];
             const lines = section.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-            
             if (lines.length === 0) continue;
-            
+
             const sectionHeader = lines[0].toLowerCase();
             const sectionContent = lines.slice(1).join('\n').trim();
-            
+
             // Check for numbered sections like vocab-5 or questions-3
             if (sectionHeader.startsWith('vocab')) {
                 const match = sectionHeader.match(/vocab(?:-(\d+))?/);
                 const vocabCount = match && match[1] ? parseInt(match[1]) : null;
                 this.parseVocabulary(sectionContent, vocabCount);
+                this.orderedSections.push({ type: 'vocab', data: { vocabCount } });
+                lastSectionType = 'vocab';
             } else if (sectionHeader.startsWith('cloze')) {
                 const match = sectionHeader.match(/cloze(?:-(\d+))?/);
                 const clozeCount = match && match[1] ? parseInt(match[1]) : null;
                 this.parseCloze(sectionContent, clozeCount);
+                this.orderedSections.push({ type: 'cloze', data: { clozeCount, text: sectionContent } });
+                lastSectionType = 'cloze';
             } else if (sectionHeader.startsWith('questions')) {
                 const match = sectionHeader.match(/questions(?:-(\d+))?/);
                 const questionCount = match && match[1] ? parseInt(match[1]) : null;
-                this.parseQuestions(sectionContent, questionCount);
+                // parseQuestions returns the full parsed bank (no truncation here)
+                const parsedQuestions = this.parseQuestions(sectionContent);
+                // If the last section was a text, attach these questions to that text's sectionId
+                if (lastSectionType === 'text' && lastTextSectionId !== null) {
+                    this.questionGroups.push({ sectionId: lastTextSectionId, questions: parsedQuestions, maxQuestions: questionCount });
+                    this.orderedSections.push({ type: 'questions', sectionId: lastTextSectionId, questions: parsedQuestions, maxQuestions: questionCount });
+                } else {
+                    // Global questions (not tied to a text section)
+                    this.questionGroups.push({ sectionId: null, questions: parsedQuestions, maxQuestions: questionCount });
+                    this.orderedSections.push({ type: 'questions', sectionId: null, questions: parsedQuestions, maxQuestions: questionCount });
+                }
+                lastSectionType = 'questions';
             } else {
                 switch (sectionHeader) {
                     case 'text':
+                        // Support multiple text sections
+                        const newSectionId = this.passages.length;
+                        this.passages.push({ text: sectionContent, sectionId: newSectionId });
+                        // Update single-passage fallback for older code paths
                         this.passage = sectionContent;
+                        lastTextSectionId = newSectionId;
+                        this.orderedSections.push({ type: 'text', sectionId: newSectionId, text: sectionContent });
+                        lastSectionType = 'text';
                         break;
                     case 'audio':
                         this.parseAudio(sectionContent);
+                        lastSectionType = 'audio';
                         break;
+                    default:
+                        lastSectionType = null;
                 }
             }
         }
@@ -161,13 +190,15 @@ class TjQuizElement extends HTMLElement {
         this.shadowRoot.getElementById('quizDescription').textContent = 'Read the passage, then answer the questions below.';
         this.shadowRoot.getElementById('passageText').textContent = this.passage;
         
+        const totalQuestionsParsed = this.questionGroups.reduce((sum, g) => sum + (g.questions ? g.questions.length : 0), 0);
         console.log('Parsed:', {
             title: this.title,
+            passages: this.passages.length,
             passageLength: this.passage.length,
             vocabularySections: this.vocabularySections.length,
             clozeSections: this.clozeSections.length,
             audioSrc: this.audioSrc,
-            questionsCount: this.questionBank.length
+            questionsCount: totalQuestionsParsed
         });
     }
 
@@ -242,12 +273,12 @@ class TjQuizElement extends HTMLElement {
     }
 
     parseQuestions(questionsSection, maxQuestions = null) {
-        if (!questionsSection) return;
-        
+        if (!questionsSection) return [];
+
         const lines = questionsSection.split('\n').map(l => l.trim()).filter(l => l.length > 0);
         let currentQuestion = null;
         const tempQuestionBank = [];
-        
+
         for (const line of lines) {
             if (line.startsWith('Q:') || line.startsWith('Q.')) {
                 // New question
@@ -265,7 +296,7 @@ class TjQuizElement extends HTMLElement {
                 const answerText = line.substring(2).trim();
                 const isCorrect = answerText.includes('[correct]');
                 const cleanAnswer = answerText.replace('[correct]', '').trim();
-                
+
                 currentQuestion.o.push(cleanAnswer);
                 if (isCorrect) {
                     currentQuestion.a = cleanAnswer;
@@ -275,21 +306,16 @@ class TjQuizElement extends HTMLElement {
                 currentQuestion.e = line.substring(2).trim();
             }
         }
-        
+
         // Don't forget the last question
         if (currentQuestion) {
             tempQuestionBank.push(currentQuestion);
         }
-        
-        // If maxQuestions is specified, randomly select that many questions
-        if (maxQuestions && tempQuestionBank.length > maxQuestions) {
-            this.shuffleArray(tempQuestionBank);
-            this.questionBank = tempQuestionBank.slice(0, maxQuestions);
-        } else {
-            this.questionBank = tempQuestionBank;
-        }
-        
-        console.log('Questions parsed. Total questions in bank:', this.questionBank.length, 'Max questions:', maxQuestions);
+
+    // Always return the full parsed question bank here. Selection of a subset
+    // for a single try is done during generateQuiz so --questions-N applies per try.
+    console.log('Questions parsed. Total questions parsed:', tempQuestionBank.length, 'Max questions (deferred):', maxQuestions);
+    return tempQuestionBank;
     }
 
     generateVocabMatching() {
@@ -509,7 +535,7 @@ class TjQuizElement extends HTMLElement {
         
         if (answeredVocabWords === totalVocabWords) {
             // Check if all sections are complete to enable score button
-            const allQuestionsAnswered = this.questionBank.length === 0 || this.checkAllQuestionsAnswered();
+            const allQuestionsAnswered = this.totalQuestions === 0 || this.checkAllQuestionsAnswered();
             const allClozeAnswered = this.checkAllClozeAnswered();
             
             if (allQuestionsAnswered && allClozeAnswered) {
@@ -537,7 +563,7 @@ class TjQuizElement extends HTMLElement {
             // Check if all sections are complete to enable score button
             const vocabComplete = this.vocabularySections.length === 0 || 
                 Object.keys(this.vocabUserChoices).length === this.getTotalVocabWords();
-            const questionsComplete = this.questionBank.length === 0 || this.checkAllQuestionsAnswered();
+            const questionsComplete = this.totalQuestions === 0 || this.checkAllQuestionsAnswered();
             
             if (vocabComplete && questionsComplete) {
                 const checkScoreButton = this.shadowRoot.getElementById('checkScoreButton');
@@ -773,47 +799,81 @@ class TjQuizElement extends HTMLElement {
         const questionsSection = this.shadowRoot.getElementById('questionsSection');
         const readingSection = this.shadowRoot.getElementById('readingSection');
         const checkScoreButton = this.shadowRoot.getElementById('checkScoreButton');
+        console.log('generateQuiz called, questions total:', this.totalQuestions);
         
-        console.log('generateQuiz called, questionBank length:', this.questionBank.length);
-        
-        // Clear previous questions
-        const existingQuestionBlocks = questionsSection.querySelectorAll('.question-block');
-        existingQuestionBlocks.forEach(block => block.remove());
-        
+        // Clear previous questions and reading content
+        questionsSection.innerHTML = '';
+        // Reset counters and button state
         this.score = 0;
         this.questionsAnswered = 0;
         checkScoreButton.disabled = true;
 
-        // Hide or show reading section based on whether we have passage content
-        if (!this.passage || this.passage.trim() === '') {
-            readingSection.classList.add('hidden');
-        } else {
-            readingSection.classList.remove('hidden');
-        }
-
-        // Generate vocabulary matching if vocabulary exists
+        // Generate vocabulary matching and cloze sections
         this.generateVocabMatching();
-
-        // Generate cloze section if cloze exists
         this.generateCloze();
 
-        // Check if we should enable the score button right away (if only cloze exists)
-        this.checkInitialCompletion();
+        // Render sections in original order using orderedSections to keep questions where they appear
+        const passageContentArea = this.shadowRoot.querySelector('.passage-content');
+        passageContentArea.innerHTML = '';
+        const orderedQuestionItems = [];
 
-        // Hide or show questions section based on whether we have questions
-        if (this.questionBank.length === 0) {
+        this.orderedSections.forEach((sec, secIndex) => {
+            if (sec.type === 'text') {
+                // render passage
+                const passageWrapper = document.createElement('div');
+                passageWrapper.className = 'passage-wrapper';
+                const passageHeader = document.createElement('h3');
+                passageHeader.className = 'passage-header';
+                passageHeader.textContent = `Passage ${sec.sectionId + 1}`;
+                const passageTextEl = document.createElement('p');
+                passageTextEl.className = 'passage-text';
+                passageTextEl.textContent = sec.text;
+                passageWrapper.appendChild(passageHeader);
+                passageWrapper.appendChild(passageTextEl);
+
+                // container for questions that appear immediately after this text
+                const qContainer = document.createElement('div');
+                qContainer.className = 'passage-questions';
+                passageWrapper.appendChild(qContainer);
+                passageContentArea.appendChild(passageWrapper);
+
+                // Questions tied to this passage will be handled by the 'questions' entries
+                // in orderedSections below. We only render the passage and its question
+                // container here to preserve placement.
+            } else if (sec.type === 'vocab') {
+                // already handled via generateVocabMatching which updates its area; leave as is but note ordering
+            } else if (sec.type === 'cloze') {
+                // cloze handled in generateCloze
+            } else if (sec.type === 'questions') {
+                // if questions were placed in orderedSections (global or tied), render them where they appear
+                const targetContainer = sec.sectionId !== null ? (this.shadowRoot.querySelectorAll('.passage-questions')[sec.sectionId]) : questionsSection;
+                if (sec.questions && sec.questions.length > 0) {
+                    // Apply per-section maxQuestions selection at render-time so each try picks new random subset
+                    const maxForSection = sec.maxQuestions || null;
+                    let questionsForSection = [...sec.questions];
+                    if (maxForSection && questionsForSection.length > maxForSection) {
+                        this.shuffleArray(questionsForSection);
+                        questionsForSection = questionsForSection.slice(0, maxForSection);
+                    }
+                    questionsForSection.forEach(q => orderedQuestionItems.push({ question: q, container: targetContainer }));
+                }
+            }
+        });
+
+    // Note: orderedSections contains 'questions' entries for global groups as well, so do not double-append globals here
+
+        // Flatten and render the questions in the ordered sequence
+        this.currentQuestions = orderedQuestionItems.map(i => i.question);
+        this.totalQuestions = this.currentQuestions.length;
+
+        if (this.totalQuestions === 0) {
             questionsSection.classList.add('hidden');
-            this.totalQuestions = 0; // No questions available
         } else {
             questionsSection.classList.remove('hidden');
-            
-            // Use all questions from questionBank (already filtered by parseQuestions if needed)
-            this.shuffleArray(this.questionBank);
-            this.currentQuestions = this.questionBank; // Use all questions since they're already filtered
-            this.totalQuestions = this.questionBank.length;
-            
-            this.currentQuestions.forEach((q, index) => {
-                questionsSection.appendChild(this.createQuestionBlock(q, index));
+            this.currentQuestions.forEach((q, idx) => {
+                const item = orderedQuestionItems[idx];
+                const container = item && item.container ? item.container : questionsSection;
+                container.appendChild(this.createQuestionBlock(q, idx));
             });
         }
     }
@@ -821,7 +881,7 @@ class TjQuizElement extends HTMLElement {
     checkInitialCompletion() {
         // If there's only cloze content and no vocab or questions, enable score button immediately
         const hasVocab = this.vocabularySections.length > 0;
-        const hasQuestions = this.questionBank.length > 0;
+    const hasQuestions = this.totalQuestions > 0;
         const hasCloze = this.clozeSections.length > 0;
         
         if (hasCloze && !hasVocab && !hasQuestions) {
@@ -1057,7 +1117,7 @@ class TjQuizElement extends HTMLElement {
         // Calculate totals for all sections
         const vocabTotal = this.getTotalVocabWords();
         const clozeTotal = this.clozeSections.reduce((total, section) => total + section.words.length, 0);
-        const questionTotal = this.questionBank.length;
+    const questionTotal = this.totalQuestions;
         const totalPossible = vocabTotal + clozeTotal + questionTotal;
         const totalEarned = this.vocabScore + this.clozeScore + this.score;
         
