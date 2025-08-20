@@ -142,6 +142,29 @@ legend {
     width: auto;
 }
 
+/* Make cloze and vocab section headings match the Reading Passage style */
+fieldset > legend {
+    display: block;
+    font-size: 1.125em;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+    padding-bottom: 0.5rem;
+    color: var(--text-light);
+    border-bottom: 1px solid var(--border-light);
+}
+
+/* Add consistent spacing for section content similar to the passage card */
+#vocabSection .vocab-grid-table,
+#clozeSection .cloze-word-bank,
+#clozeSection .cloze-text {
+    margin-top: 1rem;
+}
+
+/* Slightly reduce the top padding of the instruction text to match screenshot */
+.reading-instructions {
+    margin-top: 0.25rem;
+}
+
 .reading-instructions {
     font-size: 0.9em;
     color: var(--subtle-text-light);
@@ -646,10 +669,10 @@ legend {
 
 .cloze-word-bank {
     background-color: var(--input-bg-light);
-    border: 1px solid var(--border-color);
+    border: 1px solid var(--border-light);
     border-radius: 0.5rem;
     padding: 1rem;
-    margin-bottom: 1.5rem;
+    margin-bottom: 1.25rem;
 }
 
 :host(.dark) .cloze-word-bank {
@@ -659,7 +682,7 @@ legend {
 .cloze-bank-title {
     font-weight: 600;
     margin-bottom: 0.75rem;
-    color: var(--text-primary);
+    color: var(--subtle-text-light);
     font-size: 0.9em;
     text-transform: uppercase;
     letter-spacing: 0.05em;
@@ -669,30 +692,33 @@ legend {
     display: flex;
     flex-wrap: wrap;
     gap: 0.5rem;
+    align-items: center;
 }
 
 .cloze-bank-word {
     background-color: var(--primary-color);
-    color: white;
-    padding: 0.5rem 0.75rem;
-    border-radius: 0.25rem;
+    color: var(--primary-text);
+    padding: 0.45rem 0.75rem;
+    border-radius: 0.375rem;
     font-size: 0.9em;
-    font-weight: 500;
+    font-weight: 600;
     cursor: default;
     user-select: none;
+    box-shadow: 0 2px 6px rgba(79,70,229,0.08);
 }
 
 .cloze-text {
     line-height: 1.8;
-    font-size: 1.1em;
-    color: var(--text-primary);
+    font-size: 1.05em;
+    color: var(--text-light);
 }
 
 .cloze-blank {
     display: inline-block;
-    width: 10ch; /* 10 characters wide */
-    margin: 0 0.25rem;
-    padding: 0.25rem 0.5rem;
+    min-width: 6.5ch; /* slightly narrower blanks to fit inline */
+    max-width: 12ch;
+    margin: 0 0.35rem;
+    padding: 0.15rem 0.4rem;
     border: none;
     border-bottom: 2px solid var(--border-light);
     background: transparent;
@@ -700,12 +726,15 @@ legend {
     font-family: inherit;
     color: var(--text-light);
     text-align: center;
-    transition: border-color 0.3s;
+    vertical-align: baseline;
+    transition: border-color 0.18s, background-color 0.18s;
 }
 
 .cloze-blank:focus {
     outline: none;
     border-bottom-color: var(--primary-color);
+    background: rgba(79,70,229,0.03);
+    border-radius: 0.25rem;
 }
 
 .cloze-blank.correct {
@@ -713,13 +742,15 @@ legend {
     background-color: var(--green-light-bg);
 }
 
+.cloze-blank.correct {
+    border-bottom-color: var(--green-color);
+    background-color: var(--green-light-bg);
+    border-radius: 0.25rem;
+}
 .cloze-blank.incorrect {
     border-bottom-color: var(--red-color);
     background-color: var(--red-light-bg);
-}
-
-.cloze-blank:disabled {
-    cursor: default;
+    border-radius: 0.25rem;
 }
 
 .cloze-score {
@@ -738,6 +769,7 @@ legend {
         padding: 0.375rem 0.5rem;
         font-size: 0.8em;
     }
+    .cloze-blank { min-width: 5.5ch; }
     
     .cloze-text {
         font-size: 1em;

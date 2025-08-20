@@ -490,7 +490,7 @@ class TjQuizElement extends HTMLElement {
             words.forEach(word => {
                 const regex = new RegExp(`\\*${word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\*`, 'gi');
                 textWithBlanks = textWithBlanks.replace(regex, () => {
-                    const inputHtml = `<input type="text" class="cloze-blank" data-answer="${word.toLowerCase()}" data-section-id="${sectionId}" data-blank-index="${blankIndex}" autocomplete="off" spellcheck="false" placeholder="____" title="Fill in the blank">`;
+                    const inputHtml = `<input type="text" class="cloze-blank" data-answer="${word.toLowerCase()}" data-section-id="${sectionId}" data-blank-index="${blankIndex}" autocomplete="off" spellcheck="false" title="Fill in the blank">`;
                     blankIndex++;
                     return inputHtml;
                 });
@@ -869,7 +869,7 @@ class TjQuizElement extends HTMLElement {
         const questionBlock = document.createElement('div');
         questionBlock.className = 'question-block';
         questionBlock.innerHTML = `
-            <p class="question-text">${index + 1}. ${q.q}</p>
+            <p class="question-text">${q.q}</p>
             <div class="options-group">${optionsHtml}</div>
             ${explanationHtml}
         `;
