@@ -7,6 +7,7 @@ A reusable custom HTML element for creating interactive reading comprehension ac
 - **Simple Markdown-like Format**: Easy to create content with a clean, readable format
 - **Multiple Section Support**: Create multiple vocabulary sets and cloze exercises in a single quiz
 - **Audio Integration**: Supports both audio files and text-to-speech fallback
+- **Per-passage TTS controls**: Each passage now has its own play/pause control (global header play was removed)
 - **Vocabulary Support**: Optional vocabulary definitions (useful for language learning)
 - **Fill-in-the-Blank Exercises**: Cloze tests with word banks for each section
 - **Randomized Questions**: Automatically shuffles questions and answer options
@@ -71,11 +72,14 @@ The content is divided into labeled sections separated by `---`:
 
 The element supports several built-in section/question types. Use `---type` or `---type-N` (to limit N items) as the section header.
 
-- `text` — The reading passage. Use `---text` and put your passage below the header. This section is optional.
+- `text` — The reading passage. Use `---text` and put your passage below the header. This section is optional. Multiple `---text` sections are supported; each passage will render with its own play/pause control for TTS.
+- `text-listening` — A listening-only passage. Use `---text-listening` to include a passage that is hidden visually but still available to the per-passage TTS button (useful for listening-comprehension items).
 - `vocab` / `vocab-N` — Vocabulary matching. Provide comma-separated `word: definition` pairs. The element generates a matching grid where students choose the correct definition for each word. Adding `-N` (for example `---vocab-4`) randomly limits how many words are shown from that section.
 - `cloze` / `cloze-N` — Fill-in-the-blank (cloze) exercises. Surround words to be blanked with asterisks in the text (for example `The *quick* fox`). The element turns selected asterisk-marked words into input blanks and shows a word bank. Use `-N` to limit how many blanks are chosen.
-- `audio` — Audio support. Use `---audio` and include `audio-src = URL` to play an audio file; if omitted or invalid, the element falls back to browser text-to-speech (TTS). You may also include `submission-url = ...` here to provide a submission endpoint.
-- `questions` / `questions-N` — Multiple-choice questions. Use `Q:` to start a question, `A:` lines for answer options, mark the correct answer with `[correct]`, and optionally include `E:` for an explanation. The section accepts `Q:` or `Q.` prefixes. Use `-N` to limit how many questions are randomly selected.
+- `audio` — Audio support. Use `---audio` and include `audio-src = URL` to provide a file to play for the activity. If omitted or invalid, the element falls back to browser text-to-speech (TTS). Note: the top-of-section global play button was replaced by per-passage TTS buttons; the global audio section still enables a supplied `audio-src` file for playback.
+- `questions` / `questions-N` — Multiple-choice questions. Use `Q:` to start a question, `A:` lines for answer options, mark the correct answer with `[correct]`, and optionally include `E:` for an explanation. The section accepts `Q:` or `Q.` prefixes. Use `-N` to limit how many questions are randomly selected. 
+
+Important: the `-N` limit is applied at render-time for each attempt (each Try Again/reset); the element keeps the full question bank and picks a random subset each try so users get a fresh selection on subsequent attempts.
 
 Notes:
 - Multiple sections of the same type are supported (for example several `---vocab` or `---cloze` sections).
@@ -88,6 +92,7 @@ Notes:
 - **Format**: `---text`
 - **Content**: The reading passage text
 - This section can be omitted if no reading passage is needed
+- Multiple `---text` sections are supported. Each passage will render in the order it appears and include a per-passage play/pause control for text-to-speech. If you want the passage to be listening-only (hidden text), use `---text-listening` instead.
 
 ### Vocabulary Section (---vocab or ---vocab-N)
 - **Format**: `---vocab` or `---vocab-5` (limit to 5 words)
@@ -238,6 +243,20 @@ A: In a forest
 </tj-quiz-element>
 ```
 
+### Listening-only Passage Example (---text-listening)
+```html
+<tj-quiz-element>
+Listening Practice
+---text-listening
+Listen carefully to the passage. The text is hidden visually but will be read aloud by the per-passage play button.
+---questions-1
+Q: What does the speaker say they do every morning?
+A: Go for a run
+A: Drink tea [correct]
+A: Read the newspaper
+</tj-quiz-element>
+```
+
 ## Customization
 
 ### Number of Questions/Vocabulary/Cloze Items
@@ -257,14 +276,6 @@ tj-quiz-element {
     --green-color: #your-green;
     --red-color: #your-red;
 }
-```
-
-### Submission URL
-To enable score submission, add a submission URL in the audio section:
-```
----audio
-audio-src = https://example.com/audio.mp3
-submission-url = https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec
 ```
 
 ## Browser Support

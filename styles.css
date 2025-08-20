@@ -200,6 +200,9 @@ legend {
     background: transparent;
     margin-bottom: 1rem;
 }
+.passage-wrapper {
+    position: relative;
+}
 .passage-header {
     display: flex;
     align-items: center;
@@ -207,6 +210,17 @@ legend {
 }
 .passage-text {
     margin-top: 0.75rem;
+}
+
+/* Visually hide text but keep it in the DOM for TTS and accessibility */
+.listening-hidden {
+    position: absolute !important;
+    clip: rect(1px, 1px, 1px, 1px); /* IE6,7 */
+    clip-path: inset(50%); /* modern */
+    height: 1px;
+    width: 1px;
+    overflow: hidden;
+    white-space: nowrap;
 }
 
 .passage-content {

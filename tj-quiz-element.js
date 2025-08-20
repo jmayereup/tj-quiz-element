@@ -167,13 +167,15 @@ class TjQuizElement extends HTMLElement {
             } else {
                 switch (sectionHeader) {
                     case 'text':
-                        // Support multiple text sections
+                    case 'text-listening':
+                        // Support multiple text sections, including listening-only sections
+                        const isListening = sectionHeader === 'text-listening';
                         const newSectionId = this.passages.length;
-                        this.passages.push({ text: sectionContent, sectionId: newSectionId });
+                        this.passages.push({ text: sectionContent, sectionId: newSectionId, listening: isListening });
                         // Update single-passage fallback for older code paths
                         this.passage = sectionContent;
                         lastTextSectionId = newSectionId;
-                        this.orderedSections.push({ type: 'text', sectionId: newSectionId, text: sectionContent });
+                        this.orderedSections.push({ type: 'text', sectionId: newSectionId, text: sectionContent, listening: isListening });
                         lastSectionType = 'text';
                         break;
                     case 'audio':
@@ -917,6 +919,7 @@ class TjQuizElement extends HTMLElement {
                 passageHeader.appendChild(passageAudioButton);
                 const passageTextEl = document.createElement('p');
                 passageTextEl.className = 'passage-text';
+                if (sec.listening) passageTextEl.classList.add('listening-hidden');
                 passageTextEl.textContent = sec.text;
                 passageWrapper.appendChild(passageHeader);
                 passageWrapper.appendChild(passageTextEl);
