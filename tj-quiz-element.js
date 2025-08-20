@@ -1187,7 +1187,6 @@ class TjQuizElement extends HTMLElement {
             this.shadowRoot.getElementById('studentId')
         ];
         
-        this.scrollIntoView({ behavior: 'smooth', block: 'start' });
         let allFieldsValid = true;
         studentInputs.forEach(input => {
             if (input.value.trim() === '') {
