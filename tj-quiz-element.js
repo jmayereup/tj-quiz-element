@@ -20,6 +20,7 @@ class TjQuizElement extends HTMLElement {
         this.audioPlayer = null;
         this.utterance = null;
         this.audioSrc = '';
+    this.currentAudioButton = null; // currently-playing passage audio button (for icon state)
         this.submissionUrl = config.submissionUrl || ''; // Use config file for submission URL
         this.title = '';
         this.passage = '';
@@ -681,6 +682,15 @@ class TjQuizElement extends HTMLElement {
         themeToggle.addEventListener('click', () => this.toggleTheme());
 
         this.shadowRoot.addEventListener('click', (event) => {
+            const passageAudioToggle = event.target.closest('.passage-audio-toggle');
+            if (passageAudioToggle) {
+                const passageWrapper = passageAudioToggle.closest('.passage-wrapper');
+                const passageTextEl = passageWrapper ? passageWrapper.querySelector('.passage-text') : null;
+                const text = passageTextEl ? passageTextEl.textContent : '';
+                this.handlePassageTTS(passageAudioToggle, text);
+                return;
+            }
+
             const audioToggle = event.target.closest('.audio-toggle');
             if (audioToggle) {
                 this.handleAudioToggle();
@@ -706,6 +716,21 @@ class TjQuizElement extends HTMLElement {
             pauseIcon.classList.add('hidden');
         }
     }
+
+    // Set play/pause icon state for a specific passage audio button
+    setPassageAudioIcon(button, state) {
+        if (!button) return;
+        const playIcon = button.querySelector('.play-icon');
+        const pauseIcon = button.querySelector('.pause-icon');
+        if (!playIcon || !pauseIcon) return;
+        if (state === 'playing') {
+            playIcon.classList.add('hidden');
+            pauseIcon.classList.remove('hidden');
+        } else {
+            playIcon.classList.remove('hidden');
+            pauseIcon.classList.add('hidden');
+        }
+    }
     
     stopAllAudio() {
         if (window.speechSynthesis && (window.speechSynthesis.speaking || window.speechSynthesis.paused)) {
@@ -716,6 +741,11 @@ class TjQuizElement extends HTMLElement {
             this.audioPlayer.currentTime = 0;
         }
         this.setAudioIcon('paused');
+        // Reset any passage-specific audio button icons
+        if (this.currentAudioButton) {
+            this.setPassageAudioIcon(this.currentAudioButton, 'paused');
+            this.currentAudioButton = null;
+        }
     }
 
     handleTTS() {
@@ -765,6 +795,55 @@ class TjQuizElement extends HTMLElement {
             this.handleAudioFile();
         } else {
             this.handleTTS();
+        }
+    }
+
+    // Play/pause TTS for a specific passage button and text
+    handlePassageTTS(button, text) {
+        if (!button) return;
+
+        // If another passage button is active, stop it first
+        if (this.currentAudioButton && this.currentAudioButton !== button) {
+            this.stopAllAudio();
+        }
+
+        // If speechSynthesis is currently speaking and the same button was used, toggle pause/resume
+        if (window.speechSynthesis && window.speechSynthesis.speaking) {
+            // If the same button triggered while speaking, pause/resume
+            if (this.currentAudioButton === button) {
+                if (window.speechSynthesis.paused) {
+                    window.speechSynthesis.resume();
+                    this.setPassageAudioIcon(button, 'playing');
+                } else {
+                    window.speechSynthesis.pause();
+                    this.setPassageAudioIcon(button, 'paused');
+                }
+                return;
+            } else {
+                // different button - stop and continue to start new utterance
+                window.speechSynthesis.cancel();
+            }
+        }
+
+        // Start new utterance for this passage
+        try {
+            this.utterance = new SpeechSynthesisUtterance(text || '');
+            this.utterance.onstart = () => {
+                this.setPassageAudioIcon(button, 'playing');
+                this.currentAudioButton = button;
+            };
+            this.utterance.onend = () => {
+                this.setPassageAudioIcon(button, 'paused');
+                if (this.currentAudioButton === button) this.currentAudioButton = null;
+            };
+            this.utterance.onerror = (e) => {
+                console.error('Passage TTS Error:', e);
+                this.setPassageAudioIcon(button, 'paused');
+                if (this.currentAudioButton === button) this.currentAudioButton = null;
+            };
+            window.speechSynthesis.speak(this.utterance);
+        } catch (err) {
+            console.error('TTS not available:', err);
         }
     }
 
@@ -825,6 +904,17 @@ class TjQuizElement extends HTMLElement {
                 const passageHeader = document.createElement('h3');
                 passageHeader.className = 'passage-header';
                 passageHeader.textContent = `Passage ${sec.sectionId + 1}`;
+
+                // per-passage audio button
+                const passageAudioButton = document.createElement('button');
+                passageAudioButton.type = 'button';
+                passageAudioButton.className = 'passage-audio-toggle';
+                passageAudioButton.title = 'Play Passage Audio';
+                passageAudioButton.innerHTML = `
+                    <svg class="play-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                    <svg class="pause-icon hidden" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>
+                `;
+                passageHeader.appendChild(passageAudioButton);
                 const passageTextEl = document.createElement('p');
                 passageTextEl.className = 'passage-text';
                 passageTextEl.textContent = sec.text;
