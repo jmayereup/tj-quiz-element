@@ -893,6 +893,13 @@ class TjQuizElement extends HTMLElement {
         this.generateVocabMatching();
         this.generateCloze();
 
+        // Hide the reading section if there are no text passages
+        if (!this.passages || this.passages.length === 0) {
+            if (readingSection) readingSection.classList.add('hidden');
+        } else {
+            if (readingSection) readingSection.classList.remove('hidden');
+        }
+
         // Render sections in original order using orderedSections to keep questions where they appear
         const passageContentArea = this.shadowRoot.querySelector('.passage-content');
         passageContentArea.innerHTML = '';
