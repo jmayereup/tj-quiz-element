@@ -32,6 +32,7 @@ class TjQuizElement extends HTMLElement {
         this.clozeAnswers = {}; // User's answers for each blank (section-blank key)
         this.clozeScore = 0;
         this.clozeSubmitted = false;
+    this.userQuestionAnswers = {}; // map questionIndex -> selected value (for MC questions)
     }
 
     attributeChangedCallback(name, oldValue, newValue) {
@@ -887,6 +888,7 @@ class TjQuizElement extends HTMLElement {
         // Reset counters and button state
         this.score = 0;
         this.questionsAnswered = 0;
+    this.userQuestionAnswers = {};
         checkScoreButton.disabled = true;
 
         // Generate vocabulary matching and cloze sections
@@ -998,58 +1000,69 @@ class TjQuizElement extends HTMLElement {
         return this.questionsAnswered === this.totalQuestions;
     }
 
+    showQuestionFeedback() {
+        // Iterate through the rendered questions and reveal correct/incorrect states
+        this.score = 0; // recalc
+        for (let i = 0; i < this.totalQuestions; i++) {
+            const questionData = this.currentQuestions[i];
+            const qName = `q${i}`;
+            const userAnswer = this.userQuestionAnswers[i];
+
+            const radioButtons = this.shadowRoot.querySelectorAll(`input[name="${qName}"]`);
+            radioButtons.forEach(radio => {
+                const label = radio.closest('.option-label');
+                // disable inputs now to prevent changes after checking
+                radio.disabled = true;
+                let feedbackIcon = label.querySelector('.feedback-icon');
+                if (!feedbackIcon) {
+                    feedbackIcon = document.createElement('span');
+                    feedbackIcon.className = 'feedback-icon';
+                    label.appendChild(feedbackIcon);
+                }
+
+                if (radio.value === questionData.a) {
+                    label.classList.add('correct');
+                    feedbackIcon.textContent = '✅';
+                }
+                if (userAnswer && radio.value === userAnswer && userAnswer !== questionData.a) {
+                    label.classList.add('incorrect');
+                    feedbackIcon.textContent = '❌';
+                }
+            });
+
+            // Show explanation if available
+            const explanation = this.shadowRoot.getElementById(`explanation-q${i}`);
+            if (explanation) explanation.classList.remove('hidden');
+
+            if (userAnswer === questionData.a) this.score++;
+        }
+    }
+
     handleAnswer(e) {
-        if (e.target.type !== 'radio' || e.target.dataset.answered) return;
-        
+        if (e.target.type !== 'radio') return;
+
         const selectedRadio = e.target;
         const questionName = selectedRadio.name;
-        
+
         // Skip vocabulary radio buttons - they're handled by handleVocabAnswer
         if (questionName.startsWith('vocab-')) return;
-        
+
         const questionIndex = parseInt(questionName.substring(1));
-        
-        const questionData = this.currentQuestions[questionIndex];
+        // Record the user's selected answer but do not reveal feedback yet
+        this.userQuestionAnswers[questionIndex] = selectedRadio.value;
 
-        if (selectedRadio.value === questionData.a) {
-            this.score++;
-        }
-        this.questionsAnswered++;
+        // Mark radio as answered to avoid double-counting, but keep enabled so user can change before checking
+        selectedRadio.dataset.answered = 'true';
 
-        const radioButtons = this.shadowRoot.querySelectorAll(`input[name="${questionName}"]`);
-        radioButtons.forEach(radio => {
-            const label = radio.closest('.option-label');
-            radio.disabled = true;
-            radio.dataset.answered = 'true';
-            label.style.cursor = 'default';
-            
-            let feedbackIcon = label.querySelector('.feedback-icon');
-            if (!feedbackIcon) {
-                feedbackIcon = document.createElement('span');
-                feedbackIcon.className = 'feedback-icon';
-                label.appendChild(feedbackIcon);
-            }
+        // Count unique answered questions
+        const answeredCount = Object.keys(this.userQuestionAnswers).length;
+        this.questionsAnswered = answeredCount;
 
-            if (radio.value === questionData.a) {
-                label.classList.add('correct');
-                feedbackIcon.textContent = '✅';
-            } else if (radio.checked) {
-                label.classList.add('incorrect');
-                feedbackIcon.textContent = '❌';
-            }
-        });
-        
-        // Show explanation if available
-        const explanation = this.shadowRoot.getElementById(`explanation-${questionName}`);
-        if (explanation) {
-            explanation.classList.remove('hidden');
-        }
-        
-        // Enable check score button when all questions are answered and vocabulary is complete (if any)
+        // Enable check score button when all questions are answered and vocabulary/cloze are complete
         const vocabComplete = this.vocabularySections.length === 0 || Object.keys(this.vocabUserChoices).length === this.getTotalVocabWords();
         const questionsComplete = this.checkAllQuestionsAnswered();
         const clozeComplete = this.checkAllClozeAnswered();
-        
+
         if (vocabComplete && questionsComplete && clozeComplete) {
             this.shadowRoot.getElementById('checkScoreButton').disabled = false;
         }
@@ -1061,6 +1074,10 @@ class TjQuizElement extends HTMLElement {
     }
 
     showFinalScore() {
+        // Reveal question feedback before calculating final question score
+        if (this.totalQuestions > 0) {
+            this.showQuestionFeedback();
+        }
         // Calculate and show vocabulary score/feedback if vocabulary exists and hasn't been scored yet
         if (this.vocabularySections.length > 0 && !this.vocabSubmitted) {
             this.showVocabScore();
