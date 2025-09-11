@@ -883,8 +883,17 @@ class TjQuizElement extends HTMLElement {
         const checkScoreButton = this.shadowRoot.getElementById('checkScoreButton');
         console.log('generateQuiz called, questions total:', this.totalQuestions);
         
-        // Clear previous questions and reading content
-        questionsSection.innerHTML = '';
+    // Clear previous questions and reading content
+    questionsSection.innerHTML = '';
+    // Recreate the heading for global questions (template was cleared)
+    const legendEl = document.createElement('legend');
+    legendEl.textContent = 'Multiple Choice Questions';
+    questionsSection.appendChild(legendEl);
+
+    const questionsInstruction = document.createElement('p');
+    questionsInstruction.className = 'reading-instructions';
+    questionsInstruction.textContent = 'Read each question and select the best answer from the choices below.';
+    questionsSection.appendChild(questionsInstruction);
         // Reset counters and button state
         this.score = 0;
         this.questionsAnswered = 0;
@@ -936,6 +945,16 @@ class TjQuizElement extends HTMLElement {
                 // container for questions that appear immediately after this text
                 const qContainer = document.createElement('div');
                 qContainer.className = 'passage-questions';
+                // If this passage has questions placed after it in the orderedSections,
+                // add the same instruction text used in the main questions section so
+                // students see guidance where the questions actually appear.
+                const hasQuestionsForThis = this.orderedSections.some(s => s.type === 'questions' && s.sectionId === sec.sectionId);
+                if (hasQuestionsForThis) {
+                    const qInstruction = document.createElement('p');
+                    qInstruction.className = 'reading-instructions';
+                    qInstruction.textContent = 'Read each question and select the best answer from the choices below.';
+                    qContainer.appendChild(qInstruction);
+                }
                 passageWrapper.appendChild(qContainer);
                 passageContentArea.appendChild(passageWrapper);
 
@@ -1309,24 +1328,60 @@ class TjQuizElement extends HTMLElement {
             this.shadowRoot.getElementById('studentId')
         ];
         
+        // Reset form UI and sections
         quizForm.reset();
         resultArea.classList.add('hidden');
         studentInfoSection.classList.add('hidden');
         postScoreActions.classList.add('hidden');
-        readingSection.classList.remove('hidden');
-        questionsSection.classList.remove('hidden');
-        checkScoreContainer.classList.remove('hidden');
         validationMessage.textContent = '';
+
+        // Reset student inputs
         studentInputs.forEach(input => {
             input.classList.remove('invalid');
             input.disabled = false;
         });
+
+    // Reset internal tracking for questions, cloze, and vocab so a fresh try is possible
+        this.userQuestionAnswers = {};
+        this.questionsAnswered = 0;
+        this.score = 0;
+        this.vocabUserChoices = {};
+        this.vocabScore = 0;
+        this.vocabSubmitted = false;
+        this.clozeAnswers = {};
+        this.clozeScore = 0;
+        this.clozeSubmitted = false;
+
+        // Clear any visual feedback left from previous attempt
+        const allRadios = Array.from(this.shadowRoot.querySelectorAll('input[type="radio"]'));
+        allRadios.forEach(radio => {
+            radio.disabled = false;
+            try { delete radio.dataset.answered; } catch (e) {}
+        });
+
+        const allLabels = Array.from(this.shadowRoot.querySelectorAll('.option-label'));
+        allLabels.forEach(label => {
+            label.classList.remove('correct', 'incorrect');
+            const feedback = label.querySelector('.feedback-icon');
+            if (feedback) feedback.remove();
+            label.style.cursor = '';
+        });
+
+        const allExplanations = Array.from(this.shadowRoot.querySelectorAll('.explanation'));
+        allExplanations.forEach(exp => exp.classList.add('hidden'));
+
+        // Reset send/try buttons
         sendButton.disabled = false;
         sendButton.textContent = 'Send Score to Teacher';
         tryAgainButton.disabled = false;
+
+        // Stop audio and regenerate quiz (this will reselect questions per-section as needed)
         this.stopAllAudio();
         this.generateQuiz();
-        this.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // Ensure the check score container is visible again and the button is disabled until answers are provided
+    if (checkScoreContainer) checkScoreContainer.classList.remove('hidden');
+    const checkBtn = this.shadowRoot.getElementById('checkScoreButton');
+    if (checkBtn) checkBtn.disabled = true;
     }
 
     toggleTheme() {

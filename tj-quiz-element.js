@@ -1002,7 +1002,7 @@ class TjQuizElement extends HTMLElement {
     checkInitialCompletion() {
         // If there's only cloze content and no vocab or questions, enable score button immediately
         const hasVocab = this.vocabularySections.length > 0;
-    const hasQuestions = this.totalQuestions > 0;
+        const hasQuestions = this.totalQuestions > 0;
         const hasCloze = this.clozeSections.length > 0;
         
         if (hasCloze && !hasVocab && !hasQuestions) {
@@ -1204,11 +1204,17 @@ class TjQuizElement extends HTMLElement {
         else if (scorePercentage >= 0.5) resultScore.classList.add('medium');
         else resultScore.classList.add('low');
         
-        // Keep all sections visible, just hide the check score button
-        checkScoreContainer.classList.add('hidden');
-        resultArea.classList.remove('hidden');
-        studentInfoSection.classList.remove('hidden');
-        postScoreActions.classList.remove('hidden');
+    // Keep all sections visible, just hide the check score button
+    checkScoreContainer.classList.add('hidden');
+    resultArea.classList.remove('hidden');
+    studentInfoSection.classList.remove('hidden');
+    postScoreActions.classList.remove('hidden');
+
+    // Ensure post-score buttons are enabled and visible (fixes MC-only edge cases)
+    const sendButton = this.shadowRoot.getElementById('sendButton');
+    const tryAgainButton = this.shadowRoot.getElementById('tryAgainButton');
+    if (sendButton) sendButton.disabled = false;
+    if (tryAgainButton) tryAgainButton.disabled = false;
         
         // Scroll to the top of the quiz card
         const quizCard = this.shadowRoot.querySelector('.quiz-card');
@@ -1333,6 +1339,7 @@ class TjQuizElement extends HTMLElement {
         resultArea.classList.add('hidden');
         studentInfoSection.classList.add('hidden');
         postScoreActions.classList.add('hidden');
+        checkScoreContainer.classList.remove('hidden');
         validationMessage.textContent = '';
 
         // Reset student inputs
