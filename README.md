@@ -11,7 +11,8 @@ A reusable custom HTML element for creating interactive reading comprehension ac
 - **Vocabulary Support**: Optional vocabulary definitions (useful for language learning)
 - **Fill-in-the-Blank Exercises**: Cloze tests with word banks for each section
 - **Randomized Questions**: Automatically shuffles questions and answer options
-- **Real-time Feedback**: Shows correct/incorrect answers immediately
+ - **Randomized Questions**: Automatically shuffles questions and answer options
+ - **Deferred Feedback**: Multiple-choice selections are recorded but correctness is revealed only when the student clicks "Check My Score" (allows retry attempts before final checking)
 - **Score Submission**: Optional score submission to external endpoints
 - **Responsive Design**: Works on desktop and mobile devices
 - **Dark/Light Theme**: Toggle between themes
@@ -80,6 +81,10 @@ The element supports several built-in section/question types. Use `---type` or `
 - `questions` / `questions-N` — Multiple-choice questions. Use `Q:` to start a question, `A:` lines for answer options, mark the correct answer with `[correct]`, and optionally include `E:` for an explanation. The section accepts `Q:` or `Q.` prefixes. Use `-N` to limit how many questions are randomly selected. 
 
 Important: the `-N` limit is applied at render-time for each attempt (each Try Again/reset); the element keeps the full question bank and picks a random subset each try so users get a fresh selection on subsequent attempts.
+
+Note about feedback and Try Again:
+- Multiple-choice feedback is deferred until the user clicks the **Check My Score** button. Students may change their answers freely before checking.
+- Clicking **Try Again** resets answers and clears feedback, and (if `---questions-N` was used) the element will randomly reselect a new subset of questions for that attempt.
 
 Notes:
 - Multiple sections of the same type are supported (for example several `---vocab` or `---cloze` sections).
