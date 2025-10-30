@@ -885,15 +885,6 @@ class TjQuizElement extends HTMLElement {
         
     // Clear previous questions and reading content
     questionsSection.innerHTML = '';
-    // Recreate the heading for global questions (template was cleared)
-    const legendEl = document.createElement('legend');
-    legendEl.textContent = 'Multiple Choice Questions';
-    questionsSection.appendChild(legendEl);
-
-    const questionsInstruction = document.createElement('p');
-    questionsInstruction.className = 'reading-instructions';
-    questionsInstruction.textContent = 'Read each question and select the best answer from the choices below.';
-    questionsSection.appendChild(questionsInstruction);
         // Reset counters and button state
         this.score = 0;
         this.questionsAnswered = 0;
@@ -983,17 +974,38 @@ class TjQuizElement extends HTMLElement {
 
     // Note: orderedSections contains 'questions' entries for global groups as well, so do not double-append globals here
 
-        // Flatten and render the questions in the ordered sequence
+        // Flatten the questions for scoring and render
         this.currentQuestions = orderedQuestionItems.map(i => i.question);
         this.totalQuestions = this.currentQuestions.length;
+
+        // Determine whether any global questions (those targeting questionsSection) exist
+        const hasGlobalQuestions = orderedQuestionItems.some(i => i.container === questionsSection);
 
         if (this.totalQuestions === 0) {
             questionsSection.classList.add('hidden');
         } else {
-            questionsSection.classList.remove('hidden');
+            // Only show the global questions header/instruction if there are global questions
+            if (hasGlobalQuestions) {
+                questionsSection.classList.remove('hidden');
+                const legendEl = document.createElement('legend');
+                legendEl.textContent = 'Multiple Choice Questions';
+                questionsSection.appendChild(legendEl);
+
+                const questionsInstruction = document.createElement('p');
+                questionsInstruction.className = 'reading-instructions';
+                questionsInstruction.textContent = 'Read each question and select the best answer from the choices below.';
+                questionsSection.appendChild(questionsInstruction);
+            } else {
+                // if no globals, keep the section hidden (per-passage questions will have their own instruction)
+                questionsSection.classList.add('hidden');
+            }
+
+            // Now append question blocks into their containers (passage containers or global)
             this.currentQuestions.forEach((q, idx) => {
                 const item = orderedQuestionItems[idx];
                 const container = item && item.container ? item.container : questionsSection;
+                // Ensure container is visible
+                if (container === questionsSection) container.classList.remove('hidden');
                 container.appendChild(this.createQuestionBlock(q, idx));
             });
         }
