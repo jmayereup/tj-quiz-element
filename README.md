@@ -48,7 +48,10 @@ Title Here
 ---text
 Your reading passage goes here. This can be multiple paragraphs of text that students will read and then answer questions about. The passage can include complex vocabulary and concepts that will be tested in the comprehension questions.
 ---vocab-5
-vocabulary: definition, another word: another definition, complex: complicated or difficult to understand
+---vocab-5
+vocabulary: definition
+another word: another definition
+complex: complicated or difficult to understand
 ---cloze-3
 This fundamental *change* in Little *Red* Riding Hood's character has a ripple effect that alters the entire *story*, most notably by *making* the traditional *rescuer* obsolete.
 ---audio
@@ -101,9 +104,18 @@ Notes:
 
 ### Vocabulary Section (---vocab or ---vocab-N)
 - **Format**: `---vocab` or `---vocab-5` (limit to 5 words)
-- **Content**: `word: definition, another_word: definition`
-- Each vocabulary item is separated by commas
-- Word and definition are separated by a colon
+- **Preferred content**: provide one `word: definition` pair per line. Example:
+
+```
+---vocab-5
+Brain: The part in your head that thinks.
+Energy: Power to run, play, and think.
+Protein: Food like meat, eggs, and beans.
+Sugar: Sweet food, like candy or white bread.
+Good Fats: Food like fish, nuts, and avocados.
+```
+
+- Legacy (single-line) format: the parser will still accept comma-separated pairs on a single line (for backward compatibility), but the newline-separated form is preferred because definitions often contain commas.
 - Optional number after vocab limits how many words are randomly selected
 - **Multiple sections**: You can have multiple vocabulary sections with different word sets
 - This section can be omitted if no vocabulary is needed
@@ -151,7 +163,10 @@ The Water Cycle
 ---text
 Water moves through our environment in a continuous cycle. First, heat from the sun causes water in oceans, lakes, and rivers to evaporate into water vapor. This vapor rises into the atmosphere where it cools and condenses into tiny droplets that form clouds. When these droplets become heavy enough, they fall back to Earth as precipitation in the form of rain, snow, or hail.
 ---vocab-3
-evaporate: to change from liquid to gas, condense: to change from gas to liquid, precipitation: water falling from clouds as rain or snow
+---vocab-3
+evaporate: to change from liquid to gas
+condense: to change from gas to liquid
+precipitation: water falling from clouds as rain or snow
 ---questions-2
 Q: What causes water to evaporate?
 A: Cold temperatures
@@ -180,7 +195,11 @@ The *quick* brown fox jumps over the *lazy* dog.
 <tj-quiz-element>
 Vocabulary Practice
 ---vocab-4
-transport: to carry or move from one place to another, magical: having special powers, village: small town, discover: to find
+---vocab-4
+transport: to carry or move from one place to another
+magical: having special powers
+village: small town
+discover: to find
 </tj-quiz-element>
 ```
 
@@ -189,9 +208,14 @@ transport: to carry or move from one place to another, magical: having special p
 <tj-quiz-element>
 Advanced Vocabulary Practice
 ---vocab-2
-analyze: to examine in detail, synthesize: to combine elements into a whole
+---vocab-2
+analyze: to examine in detail
+synthesize: to combine elements into a whole
 ---vocab-3
-hypothesis: an educated guess, variable: a factor that can change, control: to keep constant
+---vocab-3
+hypothesis: an educated guess
+variable: a factor that can change
+control: to keep constant
 </tj-quiz-element>
 ```
 
@@ -213,11 +237,16 @@ Comprehensive Practice
 ---text
 Science involves careful observation and experimentation. Scientists form hypotheses and test them systematically.
 ---vocab-2
-hypothesis: an educated guess, systematically: in an organized way
+---vocab-2
+hypothesis: an educated guess
+systematically: in an organized way
 ---cloze-1
 Scientists form *hypotheses* and test them carefully.
 ---vocab-3
-observation: watching carefully, experimentation: testing ideas, conclusion: final result
+---vocab-3
+observation: watching carefully
+experimentation: testing ideas
+conclusion: final result
 ---questions-2
 Q: What do scientists do with hypotheses?
 A: Ignore them
@@ -237,7 +266,9 @@ A Short Story
 ---text
 Once upon a time, in a small village, there lived a young girl who discovered a magical book that could transport her to different worlds.
 ---vocab-2
-transport: to carry or move from one place to another, magical: having special powers
+---vocab-2
+transport: to carry or move from one place to another
+magical: having special powers
 ---audio
 audio-src = https://example.com/story-audio.mp3
 ---questions-1
@@ -282,20 +313,6 @@ tj-quiz-element {
     --red-color: #your-red;
 }
 ```
-
-## Browser Support
-
-- Modern browsers with Custom Elements support
-- Chrome 67+, Firefox 63+, Safari 10.1+, Edge 79+
-
-## Advantages of This Format
-
-1. **Human Readable**: Content creators can easily read and edit the format
-2. **Version Control Friendly**: Plain text format works well with Git
-3. **No HTML Knowledge Required**: Teachers can create content without knowing HTML
-4. **Flexible**: Easy to add or remove sections as needed
-5. **Reusable**: Same element works for any reading comprehension activity
-
 ## License
 
 MIT License - feel free to use and modify as needed.
