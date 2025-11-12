@@ -131,11 +131,13 @@ class TjQuizElement extends HTMLElement {
         let lastTextSectionId = null;
         for (let i = 1; i < sections.length; i++) {
             const section = sections[i];
-            const lines = section.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-            if (lines.length === 0) continue;
+        // Preserve original line breaks in the section body. We only trim the header line.
+        const rawLines = section.split('\n');
+        if (rawLines.length === 0) continue;
 
-            const sectionHeader = lines[0].toLowerCase();
-            const sectionContent = lines.slice(1).join('\n').trim();
+        const sectionHeader = (rawLines[0] || '').trim().toLowerCase();
+        // Join the remaining lines exactly as they were (preserve blank lines/newlines)
+        const sectionContent = rawLines.slice(1).join('\n');
 
             // Check for numbered sections like vocab-5 or questions-3
             if (sectionHeader.startsWith('vocab')) {
@@ -1039,12 +1041,17 @@ class TjQuizElement extends HTMLElement {
                     <svg class="pause-icon hidden" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>
                 `;
                 passageHeader.appendChild(passageAudioButton);
-                const passageTextEl = document.createElement('p');
-                passageTextEl.className = 'passage-text';
-                if (sec.listening) passageTextEl.classList.add('listening-hidden');
-                passageTextEl.textContent = sec.text;
+                // Render passage text as separate paragraphs so blank lines create new <p> elements
                 passageWrapper.appendChild(passageHeader);
-                passageWrapper.appendChild(passageTextEl);
+                const paragraphs = sec.text.split(/\n\s*\n/);
+                paragraphs.forEach(p => {
+                    const passageTextEl = document.createElement('p');
+                    passageTextEl.className = 'passage-text';
+                    if (sec.listening) passageTextEl.classList.add('listening-hidden');
+                    // Set plain text for the paragraph (no <br> conversion)
+                    passageTextEl.textContent = p.trim();
+                    passageWrapper.appendChild(passageTextEl);
+                });
 
                 // container for questions that appear immediately after this text
                 const qContainer = document.createElement('div');
