@@ -211,16 +211,38 @@ class TjQuizElement extends HTMLElement {
     parseVocabulary(vocabSection, maxWords = null) {
         if (!vocabSection) return;
         
-        // Parse vocabulary: word: definition, word: definition
-        const vocabPairs = vocabSection.split(',');
-        const allVocab = {};
-        
-        vocabPairs.forEach(pair => {
-            const [word, definition] = pair.split(':').map(s => s.trim());
-            if (word && definition) {
-                allVocab[word] = definition;
-            }
-        });
+        // Parse vocabulary. Prefer newline-separated pairs (one per line):
+        // Word: Definition
+        // If no newlines are present, fall back to comma-separated pairs.
+        const lines = vocabSection.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+
+        // Candidate raw pairs: prefer line-splitting, otherwise treat the whole
+        // block as a single candidate (legacy single-line comma-separated).
+        const candidatePairs = lines.length > 0 ? lines.slice() : [vocabSection.trim()];
+
+        // Helper to parse raw pairs into a vocab map
+        const parsePairsToMap = (pairs) => {
+            const m = {};
+            pairs.forEach(pair => {
+                const idx = pair.indexOf(':');
+                if (idx === -1) return;
+                const word = pair.slice(0, idx).trim();
+                const definition = pair.slice(idx + 1).trim().replace(/,$/, '');
+                if (word && definition) m[word] = definition;
+            });
+            return m;
+        };
+
+        // First parse using candidate pairs
+        let allVocab = parsePairsToMap(candidatePairs);
+
+        // If we only found one (or zero) vocab entry from line-splitting AND the
+        // original block contains commas, assume the author used comma-separated
+        // pairs on a single line and reparse using comma-splitting.
+        if (Object.keys(allVocab).length <= 1 && vocabSection.indexOf(',') !== -1) {
+            const commaPairs = vocabSection.split(',').map(p => p.trim()).filter(Boolean);
+            allVocab = parsePairsToMap(commaPairs);
+        }
         
         let finalVocab;
         // If maxWords is specified, randomly select that many words
@@ -384,36 +406,47 @@ class TjQuizElement extends HTMLElement {
             
             tableContainer.appendChild(headerRow);
             
-            // Create word rows
+            // Create word rows as 4-choice multiple choice items
             words.forEach((word, wordIndex) => {
                 const wordRow = document.createElement('div');
                 wordRow.className = 'vocab-grid-row';
-                
+
                 // Word cell
                 const wordCell = document.createElement('div');
                 wordCell.className = 'vocab-grid-cell vocab-word-cell';
                 wordCell.textContent = word;
                 wordRow.appendChild(wordCell);
-                
-                // Radio button cells for each definition
-                allDefinitions.forEach((definition, defIndex) => {
+
+                // Build choices: correct definition + 3 random distractors
+                const correctDef = vocabulary[word];
+                const otherDefs = allDefinitions.filter(d => d !== correctDef);
+                this.shuffleArray(otherDefs);
+                const choices = [correctDef, ...otherDefs.slice(0, 3)];
+                this.shuffleArray(choices);
+
+                choices.forEach((choiceDef, choiceIndex) => {
                     const optionCell = document.createElement('div');
                     optionCell.className = 'vocab-grid-cell vocab-option-cell';
-                    
+
                     const radioContainer = document.createElement('div');
                     radioContainer.className = 'vocab-radio-container';
-                    
+
                     const radio = document.createElement('input');
                     radio.type = 'radio';
                     radio.name = `vocab-${sectionId}-${wordIndex}`;
-                    radio.value = definition;
-                    radio.id = `vocab-${sectionId}-${wordIndex}-${defIndex}`;
-                    
+                    radio.value = choiceDef;
+                    radio.id = `vocab-${sectionId}-${wordIndex}-${choiceIndex}`;
+
                     radioContainer.appendChild(radio);
                     optionCell.appendChild(radioContainer);
+
+                    const defLabel = document.createElement('span');
+                    defLabel.className = 'vocab-def-label';
+                    defLabel.textContent = choiceDef;
+                    optionCell.appendChild(defLabel);
                     wordRow.appendChild(optionCell);
                 });
-                
+
                 tableContainer.appendChild(wordRow);
             });
             
@@ -560,14 +593,31 @@ class TjQuizElement extends HTMLElement {
             wordCell.textContent = word;
             row.appendChild(wordCell);
 
-            shuffledDefs.forEach((def, di) => {
+            // Build 4 choices per word: correct + 3 distractors
+            const correctDef = vocabulary[word];
+            const otherDefs = shuffledDefs.filter(d => d !== correctDef);
+            const choices = [correctDef, ...otherDefs.slice(0, 3)];
+            this.shuffleArray(choices);
+
+            choices.forEach((def, di) => {
                 const cell = document.createElement('div');
                 cell.className = 'vocab-grid-cell vocab-option-cell';
+                // show label for the definition so the mobile stacked layout
+                // isn't missing the definition text when the header is hidden
+                const radioContainer = document.createElement('div');
+                radioContainer.className = 'vocab-radio-container';
                 const radio = document.createElement('input');
                 radio.type = 'radio';
                 radio.name = `vocab-${sectionId}-${wi}`;
                 radio.value = def;
-                cell.appendChild(radio);
+                radio.id = `vocab-${sectionId}-${wi}-${di}`;
+                radioContainer.appendChild(radio);
+                cell.appendChild(radioContainer);
+
+                const defLabel = document.createElement('span');
+                defLabel.className = 'vocab-def-label';
+                defLabel.textContent = def;
+                cell.appendChild(defLabel);
                 row.appendChild(cell);
             });
 
