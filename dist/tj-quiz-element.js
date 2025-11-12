@@ -35,7 +35,7 @@ class TjQuizElement extends HTMLElement {
     this.userQuestionAnswers = {}; // map questionIndex -> selected value (for MC questions)
     }
 
-    attributeChangedCallback(name, oldValue, newValue) {
+    attributeChangedCallback(name, newValue) {
         if (name === 'submission-url') {
             this.submissionUrl = newValue;
         }
@@ -553,7 +553,6 @@ class TjQuizElement extends HTMLElement {
         if (e.target.type !== 'text' || !e.target.classList.contains('cloze-blank')) return;
 
         const input = e.target;
-        const correctAnswer = input.dataset.answer;
         const sectionId = input.dataset.sectionId;
         const blankIndex = input.dataset.blankIndex;
         const userAnswer = input.value.trim().toLowerCase();
@@ -595,7 +594,7 @@ class TjQuizElement extends HTMLElement {
         const totalVocab = this.getTotalVocabWords();
         
         // Show feedback for each vocabulary section
-        this.vocabularySections.forEach((vocabSection, sectionIndex) => {
+        this.vocabularySections.forEach((vocabSection) => {
             const { vocabulary, sectionId } = vocabSection;
             if (!vocabulary) return; // Skip if vocabulary is undefined
             const words = Object.keys(vocabulary);
@@ -907,7 +906,7 @@ class TjQuizElement extends HTMLElement {
         passageContentArea.innerHTML = '';
         const orderedQuestionItems = [];
 
-        this.orderedSections.forEach((sec, secIndex) => {
+        this.orderedSections.forEach((sec) => {
             if (sec.type === 'text') {
                 // render passage
                 const passageWrapper = document.createElement('div');
@@ -1120,9 +1119,6 @@ class TjQuizElement extends HTMLElement {
         }
         
         const resultScore = this.shadowRoot.getElementById('resultScore');
-        const readingSection = this.shadowRoot.getElementById('readingSection');
-        const questionsSection = this.shadowRoot.getElementById('questionsSection');
-        const vocabSection = this.shadowRoot.getElementById('vocabSection');
         const checkScoreContainer = this.shadowRoot.getElementById('checkScoreContainer');
         const resultArea = this.shadowRoot.getElementById('resultArea');
         const studentInfoSection = this.shadowRoot.getElementById('studentInfoSection');
@@ -1218,9 +1214,28 @@ class TjQuizElement extends HTMLElement {
         
     // Keep all sections visible, just hide the check score button
     checkScoreContainer.classList.add('hidden');
-    resultArea.classList.remove('hidden');
+
+    // Ensure student info is visible
     studentInfoSection.classList.remove('hidden');
-    postScoreActions.classList.remove('hidden');
+
+    // Move post-score actions (Send / Try Again) to immediately after the student info section
+    if (postScoreActions && studentInfoSection && studentInfoSection.parentNode) {
+        studentInfoSection.parentNode.insertBefore(postScoreActions, studentInfoSection.nextSibling);
+        postScoreActions.classList.remove('hidden');
+    } else if (postScoreActions) {
+        postScoreActions.classList.remove('hidden');
+    }
+
+    // Now insert the result area after the actions so the buttons remain near the student info
+    if (resultArea && postScoreActions && postScoreActions.parentNode) {
+        postScoreActions.parentNode.insertBefore(resultArea, postScoreActions.nextSibling);
+        resultArea.classList.remove('hidden');
+    } else if (resultArea && studentInfoSection && studentInfoSection.parentNode) {
+        studentInfoSection.parentNode.insertBefore(resultArea, studentInfoSection.nextSibling);
+        resultArea.classList.remove('hidden');
+    } else if (resultArea) {
+        resultArea.classList.remove('hidden');
+    }
 
     // Ensure post-score buttons are enabled and visible (fixes MC-only edge cases)
     const sendButton = this.shadowRoot.getElementById('sendButton');
@@ -1228,12 +1243,16 @@ class TjQuizElement extends HTMLElement {
     if (sendButton) sendButton.disabled = false;
     if (tryAgainButton) tryAgainButton.disabled = false;
         
-        // Scroll to the top of the quiz card
-        const quizCard = this.shadowRoot.querySelector('.quiz-card');
-        if (quizCard) {
-            quizCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        } else {
-            this.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        // Scroll the student info section into view so name/ID fields are visible
+        if (studentInfoSection) {
+            try {
+                studentInfoSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            } catch (e) {
+                // fallback to scrolling the whole element
+                const quizCard = this.shadowRoot.querySelector('.quiz-card');
+                if (quizCard) quizCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                else this.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
         }
         this.stopAllAudio();
     }
@@ -1334,8 +1353,6 @@ class TjQuizElement extends HTMLElement {
         const resultArea = this.shadowRoot.getElementById('resultArea');
         const studentInfoSection = this.shadowRoot.getElementById('studentInfoSection');
         const postScoreActions = this.shadowRoot.getElementById('postScoreActions');
-        const readingSection = this.shadowRoot.getElementById('readingSection');
-        const questionsSection = this.shadowRoot.getElementById('questionsSection');
         const checkScoreContainer = this.shadowRoot.getElementById('checkScoreContainer');
         const validationMessage = this.shadowRoot.getElementById('validationMessage');
         const sendButton = this.shadowRoot.getElementById('sendButton');

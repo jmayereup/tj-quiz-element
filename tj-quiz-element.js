@@ -35,7 +35,7 @@ class TjQuizElement extends HTMLElement {
     this.userQuestionAnswers = {}; // map questionIndex -> selected value (for MC questions)
     }
 
-    attributeChangedCallback(name, oldValue, newValue) {
+    attributeChangedCallback(name, newValue) {
         if (name === 'submission-url') {
             this.submissionUrl = newValue;
         }
@@ -512,6 +512,113 @@ class TjQuizElement extends HTMLElement {
         });
     }
 
+    // Render a single vocabulary section inline into the target container
+    renderVocabInline(vocabData, targetContainer, displayIndex) {
+        const { vocabulary, sectionId } = vocabData;
+        const wrapper = document.createElement('div');
+        wrapper.className = 'vocab-inline-wrapper';
+
+        if (this.vocabularySections.length > 1) {
+            const header = document.createElement('h4');
+            header.className = 'vocab-section-header';
+            header.textContent = `Vocabulary Set ${displayIndex + 1}`;
+            wrapper.appendChild(header);
+        }
+
+        // build small table similar to global rendering
+        const table = document.createElement('div');
+        table.className = 'vocab-grid-table';
+
+        const words = Object.keys(vocabulary);
+        const allDefinitions = Object.values(vocabulary);
+
+        // shuffle definitions for inline render for variety
+        const shuffledDefs = [...allDefinitions];
+        this.shuffleArray(shuffledDefs);
+
+        const headerRow = document.createElement('div');
+        headerRow.className = 'vocab-grid-header';
+        const wordHeaderCell = document.createElement('div');
+        wordHeaderCell.className = 'vocab-grid-header-cell';
+        wordHeaderCell.textContent = 'Word';
+        headerRow.appendChild(wordHeaderCell);
+        shuffledDefs.forEach(def => {
+            const cell = document.createElement('div');
+            cell.className = 'vocab-grid-header-cell';
+            cell.textContent = def;
+            headerRow.appendChild(cell);
+        });
+        table.appendChild(headerRow);
+
+        words.forEach((word, wi) => {
+            const row = document.createElement('div');
+            row.className = 'vocab-grid-row';
+            const wordCell = document.createElement('div');
+            wordCell.className = 'vocab-grid-cell vocab-word-cell';
+            wordCell.textContent = word;
+            row.appendChild(wordCell);
+
+            shuffledDefs.forEach((def, di) => {
+                const cell = document.createElement('div');
+                cell.className = 'vocab-grid-cell vocab-option-cell';
+                const radio = document.createElement('input');
+                radio.type = 'radio';
+                radio.name = `vocab-${sectionId}-${wi}`;
+                radio.value = def;
+                cell.appendChild(radio);
+                row.appendChild(cell);
+            });
+
+            table.appendChild(row);
+        });
+
+        wrapper.appendChild(table);
+        wrapper.style.marginBottom = '1.5rem';
+        targetContainer.appendChild(wrapper);
+    }
+
+    // Render a single cloze section inline into the target container
+    renderClozeInline(clozeData, targetContainer, displayIndex) {
+        const { text, words, sectionId } = clozeData;
+        const sectionWrapper = document.createElement('div');
+        sectionWrapper.className = 'cloze-section-wrapper';
+
+        if (this.clozeSections.length > 1) {
+            const sectionHeader = document.createElement('h4');
+            sectionHeader.className = 'cloze-section-header';
+            sectionHeader.textContent = `Fill in the Blanks - Section ${displayIndex + 1}`;
+            sectionWrapper.appendChild(sectionHeader);
+        }
+
+        const wordBank = document.createElement('div');
+        wordBank.className = 'cloze-word-bank';
+        wordBank.innerHTML = `
+            <div class="cloze-bank-title">Word Bank</div>
+            <div class="cloze-bank-words">
+                ${words.map(word => `<span class="cloze-bank-word">${word}</span>`).join('')}
+            </div>
+        `;
+        sectionWrapper.appendChild(wordBank);
+
+        let textWithBlanks = text;
+        let blankIndex = 0;
+        words.forEach(word => {
+            const regex = new RegExp(`\\*${word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\*`, 'gi');
+            textWithBlanks = textWithBlanks.replace(regex, () => {
+                const inputHtml = `<input type="text" class="cloze-blank" data-answer="${word.toLowerCase()}" data-section-id="${sectionId}" data-blank-index="${blankIndex}" autocomplete="off" spellcheck="false" title="Fill in the blank">`;
+                blankIndex++;
+                return inputHtml;
+            });
+        });
+        textWithBlanks = textWithBlanks.replace(/\*([^*]+)\*/g, '$1');
+        const textElement = document.createElement('div');
+        textElement.className = 'cloze-text';
+        textElement.innerHTML = textWithBlanks;
+        sectionWrapper.appendChild(textElement);
+        sectionWrapper.style.marginBottom = '1.5rem';
+        targetContainer.appendChild(sectionWrapper);
+    }
+
     handleVocabAnswer(e) {
         if (e.target.type !== 'radio' || !e.target.name.startsWith('vocab-')) return;
 
@@ -553,7 +660,6 @@ class TjQuizElement extends HTMLElement {
         if (e.target.type !== 'text' || !e.target.classList.contains('cloze-blank')) return;
 
         const input = e.target;
-        const correctAnswer = input.dataset.answer;
         const sectionId = input.dataset.sectionId;
         const blankIndex = input.dataset.blankIndex;
         const userAnswer = input.value.trim().toLowerCase();
@@ -595,7 +701,7 @@ class TjQuizElement extends HTMLElement {
         const totalVocab = this.getTotalVocabWords();
         
         // Show feedback for each vocabulary section
-        this.vocabularySections.forEach((vocabSection, sectionIndex) => {
+        this.vocabularySections.forEach((vocabSection) => {
             const { vocabulary, sectionId } = vocabSection;
             if (!vocabulary) return; // Skip if vocabulary is undefined
             const words = Object.keys(vocabulary);
@@ -891,9 +997,12 @@ class TjQuizElement extends HTMLElement {
     this.userQuestionAnswers = {};
         checkScoreButton.disabled = true;
 
-        // Generate vocabulary matching and cloze sections
-        this.generateVocabMatching();
-        this.generateCloze();
+    // We'll render vocab and cloze inline according to orderedSections.
+    // Hide the global vocab/cloze areas to avoid duplicate rendering.
+    const vocabSectionGlobal = this.shadowRoot.getElementById('vocabSection');
+    const clozeSectionGlobal = this.shadowRoot.getElementById('clozeSection');
+    if (vocabSectionGlobal) vocabSectionGlobal.classList.add('hidden');
+    if (clozeSectionGlobal) clozeSectionGlobal.classList.add('hidden');
 
         // Hide the reading section if there are no text passages
         if (!this.passages || this.passages.length === 0) {
@@ -907,7 +1016,11 @@ class TjQuizElement extends HTMLElement {
         passageContentArea.innerHTML = '';
         const orderedQuestionItems = [];
 
-        this.orderedSections.forEach((sec, secIndex) => {
+    // trackers for which parsed vocab/cloze section to render next
+    let vocabRenderIndex = 0;
+    let clozeRenderIndex = 0;
+
+    this.orderedSections.forEach((sec) => {
             if (sec.type === 'text') {
                 // render passage
                 const passageWrapper = document.createElement('div');
@@ -953,9 +1066,17 @@ class TjQuizElement extends HTMLElement {
                 // in orderedSections below. We only render the passage and its question
                 // container here to preserve placement.
             } else if (sec.type === 'vocab') {
-                // already handled via generateVocabMatching which updates its area; leave as is but note ordering
+                // Render this vocabulary section inline at this location (if available)
+                const vocabData = this.vocabularySections[vocabRenderIndex++];
+                if (vocabData) {
+                    this.renderVocabInline(vocabData, passageContentArea, vocabRenderIndex - 1);
+                }
             } else if (sec.type === 'cloze') {
-                // cloze handled in generateCloze
+                // Render this cloze section inline at this location (if available)
+                const clozeData = this.clozeSections[clozeRenderIndex++];
+                if (clozeData) {
+                    this.renderClozeInline(clozeData, passageContentArea, clozeRenderIndex - 1);
+                }
             } else if (sec.type === 'questions') {
                 // if questions were placed in orderedSections (global or tied), render them where they appear
                 const targetContainer = sec.sectionId !== null ? (this.shadowRoot.querySelectorAll('.passage-questions')[sec.sectionId]) : questionsSection;
@@ -1120,9 +1241,6 @@ class TjQuizElement extends HTMLElement {
         }
         
         const resultScore = this.shadowRoot.getElementById('resultScore');
-        const readingSection = this.shadowRoot.getElementById('readingSection');
-        const questionsSection = this.shadowRoot.getElementById('questionsSection');
-        const vocabSection = this.shadowRoot.getElementById('vocabSection');
         const checkScoreContainer = this.shadowRoot.getElementById('checkScoreContainer');
         const resultArea = this.shadowRoot.getElementById('resultArea');
         const studentInfoSection = this.shadowRoot.getElementById('studentInfoSection');
@@ -1218,9 +1336,28 @@ class TjQuizElement extends HTMLElement {
         
     // Keep all sections visible, just hide the check score button
     checkScoreContainer.classList.add('hidden');
-    resultArea.classList.remove('hidden');
+
+    // Ensure student info is visible
     studentInfoSection.classList.remove('hidden');
-    postScoreActions.classList.remove('hidden');
+
+    // Move post-score actions (Send / Try Again) to immediately after the student info section
+    if (postScoreActions && studentInfoSection && studentInfoSection.parentNode) {
+        studentInfoSection.parentNode.insertBefore(postScoreActions, studentInfoSection.nextSibling);
+        postScoreActions.classList.remove('hidden');
+    } else if (postScoreActions) {
+        postScoreActions.classList.remove('hidden');
+    }
+
+    // Now insert the result area after the actions so the buttons remain near the student info
+    if (resultArea && postScoreActions && postScoreActions.parentNode) {
+        postScoreActions.parentNode.insertBefore(resultArea, postScoreActions.nextSibling);
+        resultArea.classList.remove('hidden');
+    } else if (resultArea && studentInfoSection && studentInfoSection.parentNode) {
+        studentInfoSection.parentNode.insertBefore(resultArea, studentInfoSection.nextSibling);
+        resultArea.classList.remove('hidden');
+    } else if (resultArea) {
+        resultArea.classList.remove('hidden');
+    }
 
     // Ensure post-score buttons are enabled and visible (fixes MC-only edge cases)
     const sendButton = this.shadowRoot.getElementById('sendButton');
@@ -1228,12 +1365,16 @@ class TjQuizElement extends HTMLElement {
     if (sendButton) sendButton.disabled = false;
     if (tryAgainButton) tryAgainButton.disabled = false;
         
-        // Scroll to the top of the quiz card
-        const quizCard = this.shadowRoot.querySelector('.quiz-card');
-        if (quizCard) {
-            quizCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        } else {
-            this.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        // Scroll the student info section into view so name/ID fields are visible
+        if (studentInfoSection) {
+            try {
+                studentInfoSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            } catch (e) {
+                // fallback to scrolling the whole element
+                const quizCard = this.shadowRoot.querySelector('.quiz-card');
+                if (quizCard) quizCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                else this.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
         }
         this.stopAllAudio();
     }
@@ -1334,8 +1475,6 @@ class TjQuizElement extends HTMLElement {
         const resultArea = this.shadowRoot.getElementById('resultArea');
         const studentInfoSection = this.shadowRoot.getElementById('studentInfoSection');
         const postScoreActions = this.shadowRoot.getElementById('postScoreActions');
-        const readingSection = this.shadowRoot.getElementById('readingSection');
-        const questionsSection = this.shadowRoot.getElementById('questionsSection');
         const checkScoreContainer = this.shadowRoot.getElementById('checkScoreContainer');
         const validationMessage = this.shadowRoot.getElementById('validationMessage');
         const sendButton = this.shadowRoot.getElementById('sendButton');
