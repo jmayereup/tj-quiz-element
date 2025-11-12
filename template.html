@@ -27,7 +27,7 @@
 
                     <fieldset id="studentInfoSection" class="hidden">
                         <legend>Student Information</legend>
-                        <p class="student-instructions">Please enter your Nickname and Student ID below before sending your score. / กรุณากรอกชื่อเล่นและรหัสนักเรียนของคุณด้านล่างก่อนส่งคะแนน</p>
+                        <p class="student-instructions instruction">Please enter your Nickname and Student ID below before sending your score. / กรุณากรอกชื่อเล่นและรหัสนักเรียนของคุณด้านล่างก่อนส่งคะแนน</p>
                         <div>
                             <label for="nickname" class="input-label">Nickname</label>
                             <input type="text" id="nickname" name="nickname" class="form-input">
@@ -45,7 +45,7 @@
                     </fieldset>
 
                     <div id="postScoreActions" class="hidden" style="margin-bottom: 2rem;">
-                        <p class="postscore-instructions">After checking your score, you may enter your information and send the score to your teacher, or click Try Again to attempt the quiz again. / หลังจากตรวจคะแนนแล้ว คุณสามารถกรอกข้อมูลของคุณและส่งคะแนนให้ครู หรือคลิกลองอีกครั้งเพื่อทำแบบทดสอบอีกครั้ง</p>
+                        <p class="postscore-instructions instruction">After checking your score, you may enter your information and send the score to your teacher, or click Try Again to attempt the quiz again. / หลังจากตรวจคะแนนแล้ว คุณสามารถกรอกข้อมูลของคุณและส่งคะแนนให้ครู หรือคลิกลองอีกครั้งเพื่อทำแบบทดสอบอีกครั้ง</p>
                         <p id="validationMessage"></p>
                         <div class="post-score-actions">
                              <button type="button" id="sendButton" class="button button-green">
@@ -61,7 +61,7 @@
                         <div class="legend-container">
                             <legend>Reading Passage</legend>
                         </div>
-                        <p class="reading-instructions">Click the play button to hear the passage, then read along and answer the questions below.</p>
+                        <p class="reading-instructions instruction">Click the play button to hear the passage, then read along and answer the questions below.</p>
                         <div class="passage-content">
                             <p id="passageText"></p>
                         </div>
@@ -69,21 +69,21 @@
 
                     <fieldset id="vocabSection" class="hidden">
                         <legend>Vocabulary Matching</legend>
-                        <p class="reading-instructions">Select the correct definition for each vocabulary word.</p>
+                        <p class="reading-instructions instruction">Select the correct definition for each vocabulary word.</p>
                         <div id="vocabGrid" class="vocab-grid-table"></div>
                         <div id="vocabScore" class="vocab-score hidden"></div>
                     </fieldset>
 
                     <fieldset id="clozeSection" class="hidden">
                         <legend>Fill in the Blanks</legend>
-                        <p class="reading-instructions">Type the missing words from the word bank below.</p>
+                        <p class="reading-instructions instruction">Type the missing words from the word bank below.</p>
                         <div id="clozeContainer"></div>
                         <div id="clozeScore" class="cloze-score hidden"></div>
                     </fieldset>
 
                     <fieldset id="questionsSection">
                         <legend>Comprehension Questions</legend>
-                        <p class="reading-instructions">Read each question and select the best answer from the choices below.</p>
+                        <p class="reading-instructions instruction">Read each question and select the best answer from the choices below.</p>
                     </fieldset>
 
                     <div id="checkScoreContainer" class="actions-container">

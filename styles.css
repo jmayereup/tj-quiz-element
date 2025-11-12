@@ -35,7 +35,7 @@
     --border-light: #334155;
     --input-bg-light: #334155;
     --input-border-light: #475569;
-    --subtle-text-light: #94a3b8;
+    --subtle-text-light: #87abdd;
     --green-light-bg: #14532d;
     --red-light-bg: #7f1d1d;
 }
@@ -165,16 +165,22 @@ fieldset > legend {
     margin-top: 1rem;
 }
 
-/* Slightly reduce the top padding of the instruction text to match screenshot */
-.reading-instructions {
-    margin-top: 0.25rem;
-}
-
 .reading-instructions {
     font-size: 0.9em;
+    font-style: italic;
+    margin-bottom: 1rem;
+    margin-top: 1rem;
+        
+}
+
+/* Generic instruction style used across the form to distinguish from passage paragraphs */
+.instruction {
+    font-size: 0.9em;
     color: var(--subtle-text-light);
-    margin-bottom: 1.5rem;
-    margin-top: -0.5rem;
+    font-style: italic;
+    margin-top: 0.25rem;
+    margin-bottom: 1rem;
+    line-height: 1.45;
 }
 
 .audio-toggle {
