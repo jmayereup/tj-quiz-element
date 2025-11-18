@@ -19,15 +19,9 @@
                 </div>
 
                 <form id="quizForm">
-                    <div id="resultArea" class="result-area hidden">
-                        <h2 id="resultTitle">Your Score:</h2>
-                        <p id="resultScore"></p>
-                        <p id="resultMessage">You can try again with a new set of questions, or enter your information below to send your score.</p>
-                    </div>
-
-                    <fieldset id="studentInfoSection" class="hidden">
+                    <fieldset id="studentInfoSection">
                         <legend>Student Information</legend>
-                        <p class="student-instructions instruction">Please enter your Nickname and Student ID below before sending your score. / กรุณากรอกชื่อเล่นและรหัสนักเรียนของคุณด้านล่างก่อนส่งคะแนน</p>
+                        <p class="student-instructions instruction">Please enter your Nickname, Homeroom, and Student ID before starting the quiz. / กรุณากรอกชื่อเล่น ห้องเรียน และรหัสนักเรียนของคุณก่อนเริ่มทำแบบทดสอบ</p>
                         <div>
                             <label for="nickname" class="input-label">Nickname</label>
                             <input type="text" id="nickname" name="nickname" class="form-input">
@@ -42,54 +36,66 @@
                                 <input type="text" id="studentId" name="studentId" class="form-input">
                             </div>
                         </div>
+                        <div class="prequiz-actions">
+                            <button type="button" id="startQuizButton" class="button button-primary">Save Info &amp; Start Quiz</button>
+                            <p id="studentInfoAlert"></p>
+                        </div>
                     </fieldset>
 
-                    <div id="postScoreActions" class="hidden" style="margin-bottom: 2rem;">
-                        <p class="postscore-instructions instruction">After checking your score, you may enter your information and send the score to your teacher, or click Try Again to attempt the quiz again. / หลังจากตรวจคะแนนแล้ว คุณสามารถกรอกข้อมูลของคุณและส่งคะแนนให้ครู หรือคลิกลองอีกครั้งเพื่อทำแบบทดสอบอีกครั้ง</p>
-                        <p id="validationMessage"></p>
-                        <div class="post-score-actions">
-                             <button type="button" id="sendButton" class="button button-green">
-                                Send Score to Teacher
+                    <div id="quizContent" class="hidden">
+                        <div id="resultArea" class="result-area hidden">
+                            <h2 id="resultTitle">Your Score:</h2>
+                            <p id="resultScore"></p>
+                            <p id="resultMessage">Your score has been sent to your teacher automatically. Use Try Again if you want a new set of questions.</p>
+                        </div>
+
+                        <div id="postScoreActions" class="hidden" style="margin-bottom: 2rem;">
+                            <p class="postscore-instructions instruction">Scores are sent automatically when you check them. If there is a problem you can resend below or click Try Again for another attempt. / ผลคะแนนจะถูกส่งอัตโนมัติเมื่อคุณกดตรวจคะแนน หากมีปัญหาคุณสามารถส่งอีกครั้งหรือกดลองอีกครั้งได้</p>
+                            <p id="validationMessage"></p>
+                            <div class="post-score-actions">
+                                <button type="button" id="sendButton" class="button button-green hidden">
+                                    Resend Score to Teacher
+                                </button>
+                                <button type="button" id="tryAgainButton" class="button button-slate">
+                                    Try Again
+                                </button>
+                            </div>
+                        </div>
+
+                        <fieldset id="readingSection">
+                            <div class="legend-container">
+                                <legend>Reading Passage</legend>
+                            </div>
+                            <p class="reading-instructions instruction">Click the play button to hear the passage, then read along and answer the questions below.</p>
+                            <div class="passage-content">
+                                <p id="passageText"></p>
+                            </div>
+                        </fieldset>
+
+                        <fieldset id="vocabSection" class="hidden">
+                            <legend>Vocabulary Matching</legend>
+                            <p class="reading-instructions instruction">Select the correct definition for each vocabulary word.</p>
+                            <div id="vocabGrid" class="vocab-grid-table"></div>
+                            <div id="vocabScore" class="vocab-score hidden"></div>
+                        </fieldset>
+
+                        <fieldset id="clozeSection" class="hidden">
+                            <legend>Fill in the Blanks</legend>
+                            <p class="reading-instructions instruction">Type the missing words from the word bank below.</p>
+                            <div id="clozeContainer"></div>
+                            <div id="clozeScore" class="cloze-score hidden"></div>
+                        </fieldset>
+
+                        <fieldset id="questionsSection">
+                            <legend>Comprehension Questions</legend>
+                            <p class="reading-instructions instruction">Read each question and select the best answer from the choices below.</p>
+                        </fieldset>
+
+                        <div id="checkScoreContainer" class="actions-container">
+                            <button type="submit" id="checkScoreButton" class="button button-primary">
+                                Check My Score
                             </button>
-                            <button type="button" id="tryAgainButton" class="button button-slate">
-                                Try Again
-                            </button>
                         </div>
-                    </div>
-
-                    <fieldset id="readingSection">
-                        <div class="legend-container">
-                            <legend>Reading Passage</legend>
-                        </div>
-                        <p class="reading-instructions instruction">Click the play button to hear the passage, then read along and answer the questions below.</p>
-                        <div class="passage-content">
-                            <p id="passageText"></p>
-                        </div>
-                    </fieldset>
-
-                    <fieldset id="vocabSection" class="hidden">
-                        <legend>Vocabulary Matching</legend>
-                        <p class="reading-instructions instruction">Select the correct definition for each vocabulary word.</p>
-                        <div id="vocabGrid" class="vocab-grid-table"></div>
-                        <div id="vocabScore" class="vocab-score hidden"></div>
-                    </fieldset>
-
-                    <fieldset id="clozeSection" class="hidden">
-                        <legend>Fill in the Blanks</legend>
-                        <p class="reading-instructions instruction">Type the missing words from the word bank below.</p>
-                        <div id="clozeContainer"></div>
-                        <div id="clozeScore" class="cloze-score hidden"></div>
-                    </fieldset>
-
-                    <fieldset id="questionsSection">
-                        <legend>Comprehension Questions</legend>
-                        <p class="reading-instructions instruction">Read each question and select the best answer from the choices below.</p>
-                    </fieldset>
-
-                    <div id="checkScoreContainer" class="actions-container">
-                        <button type="submit" id="checkScoreButton" class="button button-primary">
-                            Check My Score
-                        </button>
                     </div>
                 </form>
             </div>

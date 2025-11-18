@@ -33,6 +33,9 @@ class TjQuizElement extends HTMLElement {
         this.clozeScore = 0;
         this.clozeSubmitted = false;
     this.userQuestionAnswers = {}; // map questionIndex -> selected value (for MC questions)
+        this.quizUnlocked = false; // track whether students completed the info gate
+        this.autoSubmissionInProgress = false;
+        this.scoreSubmitted = false;
     }
 
     attributeChangedCallback(name, newValue) {
@@ -54,6 +57,7 @@ class TjQuizElement extends HTMLElement {
         this.parseContent();
         this.setupEventListeners();
         this.generateQuiz();
+        this.lockQuizContent();
     }
 
     async loadTemplate() {
@@ -829,6 +833,15 @@ class TjQuizElement extends HTMLElement {
         const sendButton = this.shadowRoot.getElementById('sendButton');
         const tryAgainButton = this.shadowRoot.getElementById('tryAgainButton');
         const themeToggle = this.shadowRoot.querySelector('.theme-toggle');
+        const startQuizButton = this.shadowRoot.getElementById('startQuizButton');
+
+        if (quizForm) {
+            quizForm.addEventListener('keydown', (e) => {
+                if (!this.quizUnlocked && e.key === 'Enter') {
+                    e.preventDefault();
+                }
+            });
+        }
 
         quizForm.addEventListener('change', (e) => {
             this.handleAnswer(e);
@@ -841,6 +854,20 @@ class TjQuizElement extends HTMLElement {
         sendButton.addEventListener('click', () => this.sendScore());
         tryAgainButton.addEventListener('click', () => this.resetQuiz());
         themeToggle.addEventListener('click', () => this.toggleTheme());
+        if (startQuizButton) {
+            startQuizButton.addEventListener('click', () => this.handleStartQuiz());
+        }
+
+        this.getStudentInputs().forEach(input => {
+            input.addEventListener('input', () => {
+                if (input.value.trim() !== '') {
+                    input.classList.remove('invalid');
+                }
+                if (!this.quizUnlocked) {
+                    this.showStudentInfoAlert();
+                }
+            });
+        });
 
         this.shadowRoot.addEventListener('click', (event) => {
             const passageAudioToggle = event.target.closest('.passage-audio-toggle');
@@ -1189,6 +1216,79 @@ class TjQuizElement extends HTMLElement {
         }
     }
 
+    getStudentInputs() {
+        return [
+            this.shadowRoot.getElementById('nickname'),
+            this.shadowRoot.getElementById('homeroom'),
+            this.shadowRoot.getElementById('studentId')
+        ].filter(Boolean);
+    }
+
+    showStudentInfoAlert(message = '', type = '') {
+        const alert = this.shadowRoot.getElementById('studentInfoAlert');
+        if (!alert) return;
+        alert.textContent = message;
+        alert.className = type ? type : '';
+    }
+
+    validateStudentInfoFields(options = {}) {
+        const { showAlert = true } = options;
+        const inputs = this.getStudentInputs();
+        let allValid = true;
+
+        inputs.forEach(input => {
+            if (input.value.trim() === '') {
+                allValid = false;
+                input.classList.add('invalid');
+            } else {
+                input.classList.remove('invalid');
+            }
+        });
+
+        if (showAlert) {
+            if (!allValid) {
+                this.showStudentInfoAlert('Please fill out all student information fields before continuing.', 'error');
+            } else {
+                this.showStudentInfoAlert();
+            }
+        }
+
+        return allValid;
+    }
+
+    lockQuizContent() {
+        const quizContent = this.shadowRoot.getElementById('quizContent');
+        const startButton = this.shadowRoot.getElementById('startQuizButton');
+        if (quizContent) quizContent.classList.add('hidden');
+        if (startButton) startButton.classList.remove('hidden');
+        this.quizUnlocked = false;
+        this.showStudentInfoAlert();
+    }
+
+    unlockQuizContent() {
+        const quizContent = this.shadowRoot.getElementById('quizContent');
+        const startButton = this.shadowRoot.getElementById('startQuizButton');
+        if (quizContent) quizContent.classList.remove('hidden');
+        if (startButton) startButton.classList.add('hidden');
+        this.quizUnlocked = true;
+    }
+
+    handleStartQuiz() {
+        if (!this.validateStudentInfoFields({ showAlert: true })) return;
+        this.unlockQuizContent();
+        this.showStudentInfoAlert('Information saved! Scroll down to begin the quiz.', 'success');
+        const readingSection = this.shadowRoot.getElementById('readingSection');
+        try {
+            if (readingSection) {
+                readingSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            } else {
+                this.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        } catch (e) {
+            this.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    }
+
     checkInitialCompletion() {
         // If there's only cloze content and no vocab or questions, enable score button immediately
         const hasVocab = this.vocabularySections.length > 0;
@@ -1278,7 +1378,14 @@ class TjQuizElement extends HTMLElement {
     }
 
     handleSubmit(e) {
-        e.preventDefault(); 
+        e.preventDefault();
+        if (!this.quizUnlocked) {
+            this.showStudentInfoAlert('Please save your student information before taking the quiz.', 'error');
+            return;
+        }
+        if (!this.validateStudentInfoFields({ showAlert: true })) {
+            return;
+        }
         this.showFinalScore();
     }
 
@@ -1300,8 +1407,9 @@ class TjQuizElement extends HTMLElement {
         const resultScore = this.shadowRoot.getElementById('resultScore');
         const checkScoreContainer = this.shadowRoot.getElementById('checkScoreContainer');
         const resultArea = this.shadowRoot.getElementById('resultArea');
-        const studentInfoSection = this.shadowRoot.getElementById('studentInfoSection');
         const postScoreActions = this.shadowRoot.getElementById('postScoreActions');
+        const sendButton = this.shadowRoot.getElementById('sendButton');
+        const tryAgainButton = this.shadowRoot.getElementById('tryAgainButton');
         
         // Calculate total score (vocabulary + cloze + questions)
         const vocabTotal = this.getTotalVocabWords();
@@ -1391,87 +1499,65 @@ class TjQuizElement extends HTMLElement {
         else if (scorePercentage >= 0.5) resultScore.classList.add('medium');
         else resultScore.classList.add('low');
         
-    // Keep all sections visible, just hide the check score button
-    checkScoreContainer.classList.add('hidden');
+        // Hide the check score button once results are shown
+        if (checkScoreContainer) {
+            checkScoreContainer.classList.add('hidden');
+        }
 
-    // Ensure student info is visible
-    studentInfoSection.classList.remove('hidden');
+        if (postScoreActions) {
+            postScoreActions.classList.remove('hidden');
+        }
+        if (resultArea) {
+            resultArea.classList.remove('hidden');
+        }
+        if (sendButton) {
+            sendButton.disabled = true;
+            sendButton.textContent = 'Resend Score to Teacher';
+            sendButton.classList.add('hidden');
+        }
+        if (tryAgainButton) {
+            tryAgainButton.disabled = false;
+        }
 
-    // Move post-score actions (Send / Try Again) to immediately after the student info section
-    if (postScoreActions && studentInfoSection && studentInfoSection.parentNode) {
-        studentInfoSection.parentNode.insertBefore(postScoreActions, studentInfoSection.nextSibling);
-        postScoreActions.classList.remove('hidden');
-    } else if (postScoreActions) {
-        postScoreActions.classList.remove('hidden');
-    }
-
-    // Now insert the result area after the actions so the buttons remain near the student info
-    if (resultArea && postScoreActions && postScoreActions.parentNode) {
-        postScoreActions.parentNode.insertBefore(resultArea, postScoreActions.nextSibling);
-        resultArea.classList.remove('hidden');
-    } else if (resultArea && studentInfoSection && studentInfoSection.parentNode) {
-        studentInfoSection.parentNode.insertBefore(resultArea, studentInfoSection.nextSibling);
-        resultArea.classList.remove('hidden');
-    } else if (resultArea) {
-        resultArea.classList.remove('hidden');
-    }
-
-    // Ensure post-score buttons are enabled and visible (fixes MC-only edge cases)
-    const sendButton = this.shadowRoot.getElementById('sendButton');
-    const tryAgainButton = this.shadowRoot.getElementById('tryAgainButton');
-    if (sendButton) sendButton.disabled = false;
-    if (tryAgainButton) tryAgainButton.disabled = false;
-        
-        // Scroll the student info section into view so name/ID fields are visible
-        if (studentInfoSection) {
+        if (resultArea) {
             try {
-                studentInfoSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                resultArea.scrollIntoView({ behavior: 'smooth', block: 'start' });
             } catch (e) {
-                // fallback to scrolling the whole element
-                const quizCard = this.shadowRoot.querySelector('.quiz-card');
-                if (quizCard) quizCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                else this.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                this.scrollIntoView({ behavior: 'smooth', block: 'start' });
             }
         }
         this.stopAllAudio();
+        this.sendScore(true);
     }
 
-    sendScore() {
+    async sendScore(autoTriggered = false) {
+        if (this.autoSubmissionInProgress) {
+            return;
+        }
+
         const validationMessage = this.shadowRoot.getElementById('validationMessage');
         const sendButton = this.shadowRoot.getElementById('sendButton');
         const tryAgainButton = this.shadowRoot.getElementById('tryAgainButton');
-        const studentInputs = [
-            this.shadowRoot.getElementById('nickname'), 
-            this.shadowRoot.getElementById('homeroom'), 
-            this.shadowRoot.getElementById('studentId')
-        ];
-        
-        let allFieldsValid = true;
-        studentInputs.forEach(input => {
-            if (input.value.trim() === '') {
-                allFieldsValid = false;
-                input.classList.add('invalid');
-            } else {
-                input.classList.remove('invalid');
+
+        const infoValid = this.validateStudentInfoFields({ showAlert: true });
+        if (!infoValid) {
+            if (validationMessage) {
+                validationMessage.textContent = 'Please fill out all student information fields.';
+                validationMessage.className = 'error';
             }
-        });
-        if (!allFieldsValid) {
-            validationMessage.textContent = 'Please fill out all student information fields.';
-            validationMessage.className = 'error';
+            if (sendButton && autoTriggered) {
+                sendButton.classList.remove('hidden');
+                sendButton.disabled = false;
+            }
             return;
         }
-        validationMessage.textContent = '';
-        sendButton.disabled = true;
-        tryAgainButton.disabled = true;
-        sendButton.textContent = 'Sending...';
-        
-        // Calculate totals for all sections
+
         const vocabTotal = this.getTotalVocabWords();
         const clozeTotal = this.clozeSections.reduce((total, section) => total + section.words.length, 0);
-    const questionTotal = this.totalQuestions;
+        const questionTotal = this.totalQuestions;
         const totalPossible = vocabTotal + clozeTotal + questionTotal;
         const totalEarned = this.vocabScore + this.clozeScore + this.score;
-        
+
         const studentData = {
             quizName: this.title,
             nickname: this.shadowRoot.getElementById('nickname').value,
@@ -1481,82 +1567,120 @@ class TjQuizElement extends HTMLElement {
             total: totalPossible,
             timestamp: new Date().toISOString()
         };
-        
+
         if (!this.submissionUrl) {
-            validationMessage.textContent = '⚠️ No submission URL configured.';
-            validationMessage.className = 'error';
-            sendButton.textContent = 'No Submission URL';
+            if (validationMessage) {
+                validationMessage.textContent = '⚠️ No submission URL configured.';
+                validationMessage.className = 'error';
+            }
+            if (sendButton) {
+                sendButton.textContent = 'No Submission URL';
+                sendButton.disabled = true;
+                sendButton.classList.remove('hidden');
+            }
+            if (tryAgainButton) {
+                tryAgainButton.disabled = false;
+            }
             return;
         }
-        
-        fetch(this.submissionUrl, {
-            method: 'POST',
-            mode: 'cors',
-            body: JSON.stringify(studentData)
-        })
-        .then(response => {
+
+        this.autoSubmissionInProgress = true;
+        if (sendButton) {
+            if (autoTriggered) {
+                sendButton.classList.add('hidden');
+            } else {
+                sendButton.disabled = true;
+                sendButton.textContent = 'Sending...';
+            }
+        }
+        if (validationMessage) {
+            validationMessage.textContent = autoTriggered ? 'Submitting your score to your teacher...' : '';
+            validationMessage.className = '';
+        }
+        if (tryAgainButton) {
+            tryAgainButton.disabled = true;
+        }
+
+        try {
+            const response = await fetch(this.submissionUrl, {
+                method: 'POST',
+                mode: 'cors',
+                body: JSON.stringify(studentData)
+            });
+
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
-            
-            // Check if response is JSON
+
+            let data;
             const contentType = response.headers.get('content-type');
             if (contentType && contentType.includes('application/json')) {
-                return response.json();
+                data = await response.json();
             } else {
-                // If not JSON, return the text for debugging
-                return response.text().then(text => {
-                    console.warn('Non-JSON response received:', text);
-                    return { message: 'Submission received (non-JSON response)' };
-                });
+                const text = await response.text();
+                console.warn('Non-JSON response received:', text);
+                data = { message: 'Submission received (non-JSON response)' };
             }
-        })
-        .then(data => {
-            validationMessage.textContent = `✅ ${data.message || 'Submission successful!'}`;
-            validationMessage.className = 'success';
-            sendButton.textContent = 'Sent Successfully';
-            studentInputs.forEach(input => input.disabled = true);
-        })
-        .catch((error) => {
+
+            if (validationMessage) {
+                validationMessage.textContent = autoTriggered
+                    ? '✅ Score automatically submitted to your teacher.'
+                    : `✅ ${data.message || 'Submission successful!'}`;
+                validationMessage.className = 'success';
+            }
+            if (sendButton) {
+                sendButton.textContent = 'Score Sent';
+                sendButton.disabled = true;
+                sendButton.classList.add('hidden');
+            }
+            if (tryAgainButton) {
+                tryAgainButton.disabled = false;
+            }
+            this.scoreSubmitted = true;
+        } catch (error) {
             console.error('Error:', error);
-            validationMessage.textContent = `⚠️ Error: Could not submit score. Please try again.`;
-            validationMessage.className = 'error';
-            sendButton.textContent = 'Try Sending Again';
-            sendButton.disabled = false;
-            tryAgainButton.disabled = false;
-        });
+            if (validationMessage) {
+                validationMessage.textContent = '⚠️ Error: Could not submit score. Please try again.';
+                validationMessage.className = 'error';
+            }
+            if (sendButton) {
+                sendButton.textContent = autoTriggered ? 'Send Score Again' : 'Try Sending Again';
+                sendButton.disabled = false;
+                sendButton.classList.remove('hidden');
+            }
+            if (tryAgainButton) {
+                tryAgainButton.disabled = false;
+            }
+        } finally {
+            this.autoSubmissionInProgress = false;
+        }
     }
 
     resetQuiz() {
         const quizForm = this.shadowRoot.getElementById('quizForm');
         const resultArea = this.shadowRoot.getElementById('resultArea');
-        const studentInfoSection = this.shadowRoot.getElementById('studentInfoSection');
         const postScoreActions = this.shadowRoot.getElementById('postScoreActions');
         const checkScoreContainer = this.shadowRoot.getElementById('checkScoreContainer');
         const validationMessage = this.shadowRoot.getElementById('validationMessage');
         const sendButton = this.shadowRoot.getElementById('sendButton');
         const tryAgainButton = this.shadowRoot.getElementById('tryAgainButton');
-        const studentInputs = [
-            this.shadowRoot.getElementById('nickname'), 
-            this.shadowRoot.getElementById('homeroom'), 
-            this.shadowRoot.getElementById('studentId')
-        ];
+        const studentInputs = this.getStudentInputs();
         
-        // Reset form UI and sections
         quizForm.reset();
-        resultArea.classList.add('hidden');
-        studentInfoSection.classList.add('hidden');
-        postScoreActions.classList.add('hidden');
-        checkScoreContainer.classList.remove('hidden');
-        validationMessage.textContent = '';
+        if (resultArea) resultArea.classList.add('hidden');
+        if (postScoreActions) postScoreActions.classList.add('hidden');
+        if (checkScoreContainer) checkScoreContainer.classList.remove('hidden');
+        if (validationMessage) {
+            validationMessage.textContent = '';
+            validationMessage.className = '';
+        }
 
-        // Reset student inputs
         studentInputs.forEach(input => {
             input.classList.remove('invalid');
             input.disabled = false;
         });
+        this.showStudentInfoAlert();
 
-    // Reset internal tracking for questions, cloze, and vocab so a fresh try is possible
         this.userQuestionAnswers = {};
         this.questionsAnswered = 0;
         this.score = 0;
@@ -1566,8 +1690,9 @@ class TjQuizElement extends HTMLElement {
         this.clozeAnswers = {};
         this.clozeScore = 0;
         this.clozeSubmitted = false;
+        this.scoreSubmitted = false;
+        this.autoSubmissionInProgress = false;
 
-        // Clear any visual feedback left from previous attempt
         const allRadios = Array.from(this.shadowRoot.querySelectorAll('input[type="radio"]'));
         allRadios.forEach(radio => {
             radio.disabled = false;
@@ -1585,18 +1710,23 @@ class TjQuizElement extends HTMLElement {
         const allExplanations = Array.from(this.shadowRoot.querySelectorAll('.explanation'));
         allExplanations.forEach(exp => exp.classList.add('hidden'));
 
-        // Reset send/try buttons
-        sendButton.disabled = false;
-        sendButton.textContent = 'Send Score to Teacher';
-        tryAgainButton.disabled = false;
+        if (sendButton) {
+            sendButton.disabled = false;
+            sendButton.textContent = 'Resend Score to Teacher';
+            sendButton.classList.add('hidden');
+        }
+        if (tryAgainButton) {
+            tryAgainButton.disabled = false;
+        }
 
-        // Stop audio and regenerate quiz (this will reselect questions per-section as needed)
         this.stopAllAudio();
         this.generateQuiz();
-    // Ensure the check score container is visible again and the button is disabled until answers are provided
-    if (checkScoreContainer) checkScoreContainer.classList.remove('hidden');
-    const checkBtn = this.shadowRoot.getElementById('checkScoreButton');
-    if (checkBtn) checkBtn.disabled = true;
+
+        const checkBtn = this.shadowRoot.getElementById('checkScoreButton');
+        if (checkBtn) {
+            checkBtn.disabled = true;
+        }
+        this.lockQuizContent();
     }
 
     toggleTheme() {
