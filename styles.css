@@ -266,6 +266,42 @@ fieldset > legend {
     line-height: 1.7;
 }
 
+.section-card {
+    background-color: var(--input-bg-light);
+    border: 1px solid var(--border-light);
+    border-radius: 0.75rem;
+    padding: 1.25rem;
+    margin-bottom: 1.25rem;
+}
+
+.section-card-header {
+    font-size: 1.05em;
+    font-weight: 600;
+    color: var(--text-light);
+    margin: 0 0 0.5rem 0;
+    border-bottom: 1px solid var(--border-light);
+    padding-bottom: 0.4rem;
+}
+
+.section-card-description {
+    font-size: 0.95em;
+    color: var(--subtle-text-light);
+    line-height: 1.6;
+    margin-bottom: 0.75rem;
+}
+
+.section-card-content {
+    display: block;
+}
+
+.instruction-card .section-card-content {
+    margin-top: 0.25rem;
+}
+
+.instruction-questions {
+    margin-top: 0.75rem;
+}
+
 .question-block {
      padding-top: 1.5rem;
      border-top: 1px solid var(--border-light);

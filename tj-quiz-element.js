@@ -10,6 +10,7 @@ class TjQuizElement extends HTMLElement {
         this.attachShadow({ mode: 'open' });
         this.questionBank = [];
     this.passages = []; // support multiple text sections
+    this.instructions = []; // store instruction-only sections
     this.questionGroups = []; // questions grouped by preceding text section (sectionId) or null for global
     this.orderedSections = []; // preserve original section order
         this.currentQuestions = [];
@@ -139,7 +140,8 @@ class TjQuizElement extends HTMLElement {
         const rawLines = section.split('\n');
         if (rawLines.length === 0) continue;
 
-        const sectionHeader = (rawLines[0] || '').trim().toLowerCase();
+        const originalHeader = (rawLines[0] || '').trim();
+        const sectionHeader = originalHeader.toLowerCase();
         // Join the remaining lines exactly as they were (preserve blank lines/newlines)
         const sectionContent = rawLines.slice(1).join('\n');
 
@@ -156,13 +158,21 @@ class TjQuizElement extends HTMLElement {
                 this.parseCloze(sectionContent, clozeCount);
                 this.orderedSections.push({ type: 'cloze', data: { clozeCount, text: sectionContent } });
                 lastSectionType = 'cloze';
+            } else if (sectionHeader.startsWith('instructions')) {
+                const instructionId = this.passages.length;
+                const { heading, body } = this.extractHeadingAndBody(sectionContent, `Instructions ${this.instructions.length + 1}`);
+                this.instructions.push({ sectionId: instructionId, heading, body });
+                this.passages.push({ text: body || heading, sectionId: instructionId, listening: false, isInstruction: true });
+                this.orderedSections.push({ type: 'instructions', sectionId: instructionId, heading, body });
+                lastTextSectionId = instructionId;
+                lastSectionType = 'instructions';
             } else if (sectionHeader.startsWith('questions')) {
                 const match = sectionHeader.match(/questions(?:-(\d+))?/);
                 const questionCount = match && match[1] ? parseInt(match[1]) : null;
                 // parseQuestions returns the full parsed bank (no truncation here)
                 const parsedQuestions = this.parseQuestions(sectionContent);
                 // If the last section was a text, attach these questions to that text's sectionId
-                if (lastSectionType === 'text' && lastTextSectionId !== null) {
+                if ((lastSectionType === 'text' || lastSectionType === 'instructions') && lastTextSectionId !== null) {
                     this.questionGroups.push({ sectionId: lastTextSectionId, questions: parsedQuestions, maxQuestions: questionCount });
                     this.orderedSections.push({ type: 'questions', sectionId: lastTextSectionId, questions: parsedQuestions, maxQuestions: questionCount });
                 } else {
@@ -348,6 +358,24 @@ class TjQuizElement extends HTMLElement {
     // for a single try is done during generateQuiz so --questions-N applies per try.
     console.log('Questions parsed. Total questions parsed:', tempQuestionBank.length, 'Max questions (deferred):', maxQuestions);
     return tempQuestionBank;
+    }
+
+    extractHeadingAndBody(text, fallbackHeading = 'Instructions') {
+        const lines = (text || '').split('\n');
+        let heading = '';
+        const bodyLines = [];
+
+        for (const line of lines) {
+            if (!heading && line.trim().length > 0) {
+                heading = line.trim();
+            } else {
+                bodyLines.push(line);
+            }
+        }
+
+        if (!heading) heading = fallbackHeading;
+        const body = bodyLines.join('\n').trim();
+        return { heading, body };
     }
 
     generateVocabMatching() {
@@ -538,6 +566,7 @@ class TjQuizElement extends HTMLElement {
             
             // Remove remaining asterisks from words not selected for blanks
             textWithBlanks = textWithBlanks.replace(/\*([^*]+)\*/g, '$1');
+            textWithBlanks = this.addLineBreaksToHtml(textWithBlanks);
             
             textElement.innerHTML = textWithBlanks;
             sectionWrapper.appendChild(textElement);
@@ -554,15 +583,11 @@ class TjQuizElement extends HTMLElement {
     // Render a single vocabulary section inline into the target container
     renderVocabInline(vocabData, targetContainer, displayIndex) {
         const { vocabulary, sectionId } = vocabData;
-        const wrapper = document.createElement('div');
-        wrapper.className = 'vocab-inline-wrapper';
-
-        if (this.vocabularySections.length > 1) {
-            const header = document.createElement('h4');
-            header.className = 'vocab-section-header';
-            header.textContent = `Vocabulary Set ${displayIndex + 1}`;
-            wrapper.appendChild(header);
-        }
+        const totalSets = this.vocabularySections.length;
+        const heading = totalSets > 1 ? `Vocabulary Set ${displayIndex + 1}` : 'Vocabulary';
+        const { card, content } = this.createSectionCard(heading, {
+            cardClasses: ['vocab-card']
+        });
 
         // build small table similar to global rendering
         const table = document.createElement('div');
@@ -628,23 +653,19 @@ class TjQuizElement extends HTMLElement {
             table.appendChild(row);
         });
 
-        wrapper.appendChild(table);
-        wrapper.style.marginBottom = '1.5rem';
-        targetContainer.appendChild(wrapper);
+        content.appendChild(table);
+        targetContainer.appendChild(card);
     }
 
     // Render a single cloze section inline into the target container
     renderClozeInline(clozeData, targetContainer, displayIndex) {
         const { text, words, sectionId } = clozeData;
-        const sectionWrapper = document.createElement('div');
-        sectionWrapper.className = 'cloze-section-wrapper';
-
-        if (this.clozeSections.length > 1) {
-            const sectionHeader = document.createElement('h4');
-            sectionHeader.className = 'cloze-section-header';
-            sectionHeader.textContent = `Fill in the Blanks - Section ${displayIndex + 1}`;
-            sectionWrapper.appendChild(sectionHeader);
-        }
+        const heading = this.clozeSections.length > 1
+            ? `Fill in the Blanks - Section ${displayIndex + 1}`
+            : 'Fill in the Blanks';
+        const { card, content } = this.createSectionCard(heading, {
+            cardClasses: ['cloze-card']
+        });
 
         const wordBank = document.createElement('div');
         wordBank.className = 'cloze-word-bank';
@@ -654,7 +675,7 @@ class TjQuizElement extends HTMLElement {
                 ${words.map(word => `<span class="cloze-bank-word">${word}</span>`).join('')}
             </div>
         `;
-        sectionWrapper.appendChild(wordBank);
+        content.appendChild(wordBank);
 
         let textWithBlanks = text;
         let blankIndex = 0;
@@ -667,12 +688,12 @@ class TjQuizElement extends HTMLElement {
             });
         });
         textWithBlanks = textWithBlanks.replace(/\*([^*]+)\*/g, '$1');
+        textWithBlanks = this.addLineBreaksToHtml(textWithBlanks);
         const textElement = document.createElement('div');
         textElement.className = 'cloze-text';
         textElement.innerHTML = textWithBlanks;
-        sectionWrapper.appendChild(textElement);
-        sectionWrapper.style.marginBottom = '1.5rem';
-        targetContainer.appendChild(sectionWrapper);
+        content.appendChild(textElement);
+        targetContainer.appendChild(card);
     }
 
     handleVocabAnswer(e) {
@@ -749,6 +770,45 @@ class TjQuizElement extends HTMLElement {
     getTotalVocabWords() {
         return this.vocabularySections.reduce((total, section) => 
             total + (section.vocabulary ? Object.keys(section.vocabulary).length : 0), 0);
+    }
+
+    formatTextWithLineBreaks(text) {
+        if (!text) return '';
+        const escaped = text
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+        return escaped.replace(/\n/g, '<br>');
+    }
+
+    addLineBreaksToHtml(htmlString) {
+        if (!htmlString) return '';
+        return htmlString.replace(/\n/g, '<br>');
+    }
+
+    createSectionCard(title, options = {}) {
+        const { descriptionHtml = '', cardClasses = [] } = options;
+        const card = document.createElement('div');
+        const classList = ['section-card', ...cardClasses].filter(Boolean);
+        card.className = classList.join(' ');
+
+        const header = document.createElement('div');
+        header.className = 'section-card-header';
+        header.textContent = title;
+        card.appendChild(header);
+
+        if (descriptionHtml) {
+            const description = document.createElement('div');
+            description.className = 'section-card-description';
+            description.innerHTML = descriptionHtml;
+            card.appendChild(description);
+        }
+
+        const content = document.createElement('div');
+        content.className = 'section-card-content';
+        card.appendChild(content);
+
+        return { card, content };
     }
 
     showVocabScore() {
@@ -1106,7 +1166,8 @@ class TjQuizElement extends HTMLElement {
                 passageWrapper.className = 'passage-wrapper';
                 const passageHeader = document.createElement('h3');
                 passageHeader.className = 'passage-header';
-                passageHeader.textContent = `Passage ${sec.sectionId + 1}`;
+                const passageHeading = sec.heading || `Passage ${sec.sectionId + 1}`;
+                passageHeader.textContent = passageHeading;
 
                 // per-passage audio button
                 const passageAudioButton = document.createElement('button');
@@ -1149,6 +1210,18 @@ class TjQuizElement extends HTMLElement {
                 // Questions tied to this passage will be handled by the 'questions' entries
                 // in orderedSections below. We only render the passage and its question
                 // container here to preserve placement.
+            } else if (sec.type === 'instructions') {
+                const headingText = sec.heading || `Section ${sec.sectionId + 1}`;
+                const descriptionHtml = sec.body ? this.formatTextWithLineBreaks(sec.body) : '';
+                const { card, content } = this.createSectionCard(headingText, {
+                    descriptionHtml,
+                    cardClasses: ['instruction-card']
+                });
+                passageContentArea.appendChild(card);
+
+                const qContainer = document.createElement('div');
+                qContainer.className = 'passage-questions instruction-questions';
+                content.appendChild(qContainer);
             } else if (sec.type === 'vocab') {
                 // Render this vocabulary section inline at this location (if available)
                 const vocabData = this.vocabularySections[vocabRenderIndex++];
