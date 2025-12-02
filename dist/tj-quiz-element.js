@@ -4,15 +4,15 @@ class TjQuizElement extends HTMLElement {
     static get observedAttributes() {
         return ['submission-url'];
     }
-    
+
     constructor() {
         super();
         this.attachShadow({ mode: 'open' });
         this.questionBank = [];
-    this.passages = []; // support multiple text sections
-    this.instructions = []; // store instruction-only sections
-    this.questionGroups = []; // questions grouped by preceding text section (sectionId) or null for global
-    this.orderedSections = []; // preserve original section order
+        this.passages = []; // support multiple text sections
+        this.instructions = []; // store instruction-only sections
+        this.questionGroups = []; // questions grouped by preceding text section (sectionId) or null for global
+        this.orderedSections = []; // preserve original section order
         this.currentQuestions = [];
         this.score = 0;
         this.questionsAnswered = 0;
@@ -21,7 +21,7 @@ class TjQuizElement extends HTMLElement {
         this.audioPlayer = null;
         this.utterance = null;
         this.audioSrc = '';
-    this.currentAudioButton = null; // currently-playing passage audio button (for icon state)
+        this.currentAudioButton = null; // currently-playing passage audio button (for icon state)
         this.submissionUrl = config.submissionUrl || ''; // Use config file for submission URL
         this.title = '';
         this.passage = '';
@@ -33,7 +33,7 @@ class TjQuizElement extends HTMLElement {
         this.clozeAnswers = {}; // User's answers for each blank (section-blank key)
         this.clozeScore = 0;
         this.clozeSubmitted = false;
-    this.userQuestionAnswers = {}; // map questionIndex -> selected value (for MC questions)
+        this.userQuestionAnswers = {}; // map questionIndex -> selected value (for MC questions)
         this.quizUnlocked = false; // track whether students completed the info gate
         this.autoSubmissionInProgress = false;
         this.scoreSubmitted = false;
@@ -48,12 +48,12 @@ class TjQuizElement extends HTMLElement {
     async connectedCallback() {
         // Store the original content before rendering shadow DOM
         this.originalContent = this.textContent;
-        
+
         // Get submission URL from attribute if provided (overrides config file)
         if (this.hasAttribute('submission-url')) {
             this.submissionUrl = this.getAttribute('submission-url');
         }
-        
+
         await this.loadTemplate();
         this.parseContent();
         this.setupEventListeners();
@@ -64,39 +64,39 @@ class TjQuizElement extends HTMLElement {
     async loadTemplate() {
         try {
             console.log('Attempting to load external templates...');
-            
+
             // Now that we're loaded as a module, we can use import.meta.url
             const templateUrl = new URL('template.html', import.meta.url);
             const stylesUrl = new URL('styles.css', import.meta.url);
-            
+
             const templateResponse = await fetch(templateUrl);
             console.log('Template response status:', templateResponse.status);
-            
+
             if (!templateResponse.ok) {
                 throw new Error(`Template fetch failed: ${templateResponse.status}`);
             }
-            
+
             const templateHtml = await templateResponse.text();
             console.log('Template loaded, length:', templateHtml.length);
-            
+
             // Load styles.css
             const stylesResponse = await fetch(stylesUrl);
             console.log('Styles response status:', stylesResponse.status);
-            
+
             if (!stylesResponse.ok) {
                 throw new Error(`Styles fetch failed: ${stylesResponse.status}`);
             }
-            
+
             const stylesText = await stylesResponse.text();
             console.log('Styles loaded, length:', stylesText.length);
-            
+
             // Create template element and add styles properly
             const template = document.createElement('template');
             template.innerHTML = `<style>${stylesText}</style>${templateHtml}`;
-            
+
             this.shadowRoot.appendChild(template.content.cloneNode(true));
             console.log('External template applied successfully');
-            
+
         } catch (error) {
             console.error('Failed to load external template:', error);
             this.shadowRoot.innerHTML = `
@@ -117,33 +117,33 @@ class TjQuizElement extends HTMLElement {
     parseContent() {
         const content = this.originalContent || this.textContent;
         console.log('Parsing content:', content.substring(0, 200) + '...');
-        
+
         // Split content by --- sections
         const sections = content.split('---').map(s => s.trim());
-        
+
         if (sections.length >= 1) {
             // First section is the title (first line)
             const titleSection = sections[0].trim();
             const lines = titleSection.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-            
+
             if (lines.length > 0) {
                 this.title = lines[0]; // First line is title
             }
         }
-        
+
         // Parse each labeled section. Support multiple text sections and associate subsequent questions with the most recent text.
         let lastSectionType = null;
         let lastTextSectionId = null;
         for (let i = 1; i < sections.length; i++) {
             const section = sections[i];
-        // Preserve original line breaks in the section body. We only trim the header line.
-        const rawLines = section.split('\n');
-        if (rawLines.length === 0) continue;
+            // Preserve original line breaks in the section body. We only trim the header line.
+            const rawLines = section.split('\n');
+            if (rawLines.length === 0) continue;
 
-        const originalHeader = (rawLines[0] || '').trim();
-        const sectionHeader = originalHeader.toLowerCase();
-        // Join the remaining lines exactly as they were (preserve blank lines/newlines)
-        const sectionContent = rawLines.slice(1).join('\n');
+            const originalHeader = (rawLines[0] || '').trim();
+            const sectionHeader = originalHeader.toLowerCase();
+            // Join the remaining lines exactly as they were (preserve blank lines/newlines)
+            const sectionContent = rawLines.slice(1).join('\n');
 
             // Check for numbered sections like vocab-5 or questions-3
             if (sectionHeader.startsWith('vocab')) {
@@ -204,12 +204,12 @@ class TjQuizElement extends HTMLElement {
                 }
             }
         }
-        
+
         // Update the rendered content
         this.shadowRoot.getElementById('quizTitle').textContent = this.title || 'TJ Quiz Element';
         this.shadowRoot.getElementById('quizDescription').textContent = 'Read the passage, then answer the questions below.';
         this.shadowRoot.getElementById('passageText').textContent = this.passage;
-        
+
         const totalQuestionsParsed = this.questionGroups.reduce((sum, g) => sum + (g.questions ? g.questions.length : 0), 0);
         console.log('Parsed:', {
             title: this.title,
@@ -224,7 +224,7 @@ class TjQuizElement extends HTMLElement {
 
     parseVocabulary(vocabSection, maxWords = null) {
         if (!vocabSection) return;
-        
+
         // Parse vocabulary. Prefer newline-separated pairs (one per line):
         // Word: Definition
         // If no newlines are present, fall back to comma-separated pairs.
@@ -257,7 +257,7 @@ class TjQuizElement extends HTMLElement {
             const commaPairs = vocabSection.split(',').map(p => p.trim()).filter(Boolean);
             allVocab = parsePairsToMap(commaPairs);
         }
-        
+
         let finalVocab;
         // If maxWords is specified, randomly select that many words
         if (maxWords && Object.keys(allVocab).length > maxWords) {
@@ -268,19 +268,19 @@ class TjQuizElement extends HTMLElement {
         } else {
             finalVocab = allVocab;
         }
-        
+
         // Add this vocabulary section to the array
         this.vocabularySections.push({
             vocabulary: finalVocab,
             sectionId: this.vocabularySections.length
         });
-        
+
         console.log('Vocabulary section parsed. Words in this section:', Object.keys(finalVocab).length, 'Max words:', maxWords);
     }
 
     parseAudio(audioSection) {
         if (!audioSection) return;
-        
+
         // Look for audio-src = URL
         const audioMatch = audioSection.match(/audio-src\s*=\s*(.+)/);
         if (audioMatch) {
@@ -290,27 +290,27 @@ class TjQuizElement extends HTMLElement {
 
     parseCloze(clozeSection, maxBlanks = null) {
         if (!clozeSection) return;
-        
+
         // Extract words marked with asterisks
         const asteriskMatches = clozeSection.match(/\*([^*]+)\*/g);
         let clozeWords = [];
         if (asteriskMatches) {
             clozeWords = asteriskMatches.map(match => match.replace(/\*/g, ''));
-            
+
             // If maxBlanks is specified, randomly select that many words to remove
             if (maxBlanks && clozeWords.length > maxBlanks) {
                 this.shuffleArray(clozeWords);
                 clozeWords = clozeWords.slice(0, maxBlanks);
             }
         }
-        
+
         // Add this cloze section to the array
         this.clozeSections.push({
             text: clozeSection,
             words: clozeWords,
             sectionId: this.clozeSections.length
         });
-        
+
         console.log('Cloze section parsed. Total words available:', asteriskMatches ? asteriskMatches.length : 0, 'Words to remove:', clozeWords.length, 'Max blanks:', maxBlanks);
     }
 
@@ -354,10 +354,10 @@ class TjQuizElement extends HTMLElement {
             tempQuestionBank.push(currentQuestion);
         }
 
-    // Always return the full parsed question bank here. Selection of a subset
-    // for a single try is done during generateQuiz so --questions-N applies per try.
-    console.log('Questions parsed. Total questions parsed:', tempQuestionBank.length, 'Max questions (deferred):', maxQuestions);
-    return tempQuestionBank;
+        // Always return the full parsed question bank here. Selection of a subset
+        // for a single try is done during generateQuiz so --questions-N applies per try.
+        console.log('Questions parsed. Total questions parsed:', tempQuestionBank.length, 'Max questions (deferred):', maxQuestions);
+        return tempQuestionBank;
     }
 
     extractHeadingAndBody(text, fallbackHeading = 'Instructions') {
@@ -381,25 +381,25 @@ class TjQuizElement extends HTMLElement {
     generateVocabMatching() {
         const vocabSection = this.shadowRoot.getElementById('vocabSection');
         const vocabGrid = this.shadowRoot.getElementById('vocabGrid');
-        
+
         if (this.vocabularySections.length === 0) {
             vocabSection.classList.add('hidden');
             return;
         }
-        
+
         vocabSection.classList.remove('hidden');
         vocabGrid.innerHTML = '';
-        
+
         // Reset vocabulary tracking
         this.vocabScore = 0;
         this.vocabUserChoices = {};
         this.vocabSubmitted = false;
-        
+
         // Generate a section for each vocabulary set
         this.vocabularySections.forEach((vocabSectionData, sectionIndex) => {
             const { vocabulary, sectionId } = vocabSectionData;
             if (!vocabulary) return; // Skip if vocabulary is undefined
-            
+
             // Create section header if there are multiple vocabulary sections
             if (this.vocabularySections.length > 1) {
                 const sectionHeader = document.createElement('div');
@@ -407,27 +407,27 @@ class TjQuizElement extends HTMLElement {
                 sectionHeader.innerHTML = `<h4>Vocabulary Set ${sectionIndex + 1}</h4>`;
                 vocabGrid.appendChild(sectionHeader);
             }
-            
+
             const words = Object.keys(vocabulary);
             const allDefinitions = Object.values(vocabulary);
-            
+
             // Shuffle definitions to make it more challenging
             this.shuffleArray(allDefinitions);
-            
+
             // Create table for this vocabulary section
             const tableContainer = document.createElement('div');
             tableContainer.className = 'vocab-grid-table';
-            
+
             // Create definition header row
             const headerRow = document.createElement('div');
             headerRow.className = 'vocab-grid-header';
-            
+
             // Word column header
             const wordHeaderCell = document.createElement('div');
             wordHeaderCell.className = 'vocab-grid-header-cell';
             wordHeaderCell.textContent = 'Word';
             headerRow.appendChild(wordHeaderCell);
-            
+
             // Definition header cells
             allDefinitions.forEach((definition) => {
                 const headerCell = document.createElement('div');
@@ -435,9 +435,9 @@ class TjQuizElement extends HTMLElement {
                 headerCell.textContent = definition;
                 headerRow.appendChild(headerCell);
             });
-            
+
             tableContainer.appendChild(headerRow);
-            
+
             // Create word rows as 4-choice multiple choice items
             words.forEach((word, wordIndex) => {
                 const wordRow = document.createElement('div');
@@ -481,9 +481,9 @@ class TjQuizElement extends HTMLElement {
 
                 tableContainer.appendChild(wordRow);
             });
-            
+
             vocabGrid.appendChild(tableContainer);
-            
+
             // Add spacing between sections if there are multiple
             if (sectionIndex < this.vocabularySections.length - 1) {
                 const spacer = document.createElement('div');
@@ -496,19 +496,19 @@ class TjQuizElement extends HTMLElement {
     generateCloze() {
         const clozeSection = this.shadowRoot.getElementById('clozeSection');
         const clozeContainer = this.shadowRoot.getElementById('clozeContainer');
-        
+
         if (this.clozeSections.length === 0) {
             clozeSection.classList.add('hidden');
             return;
         }
-        
+
         clozeSection.classList.remove('hidden');
-        
+
         // Reset cloze tracking
         this.clozeScore = 0;
         this.clozeAnswers = {};
         this.clozeSubmitted = false;
-        
+
         // Clear the container and rebuild with all cloze sections
         if (!clozeContainer) {
             // Create container if it doesn't exist
@@ -516,18 +516,18 @@ class TjQuizElement extends HTMLElement {
             newContainer.id = 'clozeContainer';
             clozeSection.appendChild(newContainer);
         }
-        
+
         const container = this.shadowRoot.getElementById('clozeContainer');
         container.innerHTML = '';
-        
+
         // Generate each cloze section
         this.clozeSections.forEach((clozeData, sectionIndex) => {
             const { text, words, sectionId } = clozeData;
-            
+
             // Create section wrapper
             const sectionWrapper = document.createElement('div');
             sectionWrapper.className = 'cloze-section-wrapper';
-            
+
             // Add section header if there are multiple cloze sections
             if (this.clozeSections.length > 1) {
                 const sectionHeader = document.createElement('h4');
@@ -535,7 +535,7 @@ class TjQuizElement extends HTMLElement {
                 sectionHeader.textContent = `Fill in the Blanks - Section ${sectionIndex + 1}`;
                 sectionWrapper.appendChild(sectionHeader);
             }
-            
+
             // Create word bank for this section
             const wordBank = document.createElement('div');
             wordBank.className = 'cloze-word-bank';
@@ -546,14 +546,14 @@ class TjQuizElement extends HTMLElement {
                 </div>
             `;
             sectionWrapper.appendChild(wordBank);
-            
+
             // Create text with blanks
             const textElement = document.createElement('div');
             textElement.className = 'cloze-text';
-            
+
             let textWithBlanks = text;
             let blankIndex = 0;
-            
+
             // Replace selected words with blanks
             words.forEach(word => {
                 const regex = new RegExp(`\\*${word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\*`, 'gi');
@@ -563,19 +563,19 @@ class TjQuizElement extends HTMLElement {
                     return inputHtml;
                 });
             });
-            
+
             // Remove remaining asterisks from words not selected for blanks
             textWithBlanks = textWithBlanks.replace(/\*([^*]+)\*/g, '$1');
             textWithBlanks = this.addLineBreaksToHtml(textWithBlanks);
-            
+
             textElement.innerHTML = textWithBlanks;
             sectionWrapper.appendChild(textElement);
-            
+
             // Add spacing between sections if there are multiple
             if (sectionIndex < this.clozeSections.length - 1) {
                 sectionWrapper.style.marginBottom = '2rem';
             }
-            
+
             container.appendChild(sectionWrapper);
         });
     }
@@ -703,29 +703,29 @@ class TjQuizElement extends HTMLElement {
         const nameParts = radio.name.split('-');
         const sectionId = parseInt(nameParts[1]);
         const wordIndex = parseInt(nameParts[2]);
-        
+
         // Find the vocabulary section and word
         const vocabSection = this.vocabularySections.find(vs => vs.sectionId === sectionId);
         if (!vocabSection || !vocabSection.vocabulary) return;
-        
+
         const words = Object.keys(vocabSection.vocabulary);
         const word = words[wordIndex];
         const selectedDefinition = radio.value;
-        
+
         // Store the user's choice with section-word key
         const key = `${sectionId}-${word}`;
         this.vocabUserChoices[key] = selectedDefinition;
-        
+
         // Check if all vocabulary questions are answered
-        const totalVocabWords = this.vocabularySections.reduce((total, section) => 
+        const totalVocabWords = this.vocabularySections.reduce((total, section) =>
             total + (section.vocabulary ? Object.keys(section.vocabulary).length : 0), 0);
         const answeredVocabWords = Object.keys(this.vocabUserChoices).length;
-        
+
         if (answeredVocabWords === totalVocabWords) {
             // Check if all sections are complete to enable score button
             const allQuestionsAnswered = this.totalQuestions === 0 || this.checkAllQuestionsAnswered();
             const allClozeAnswered = this.checkAllClozeAnswered();
-            
+
             if (allQuestionsAnswered && allClozeAnswered) {
                 const checkScoreButton = this.shadowRoot.getElementById('checkScoreButton');
                 checkScoreButton.disabled = false;
@@ -740,18 +740,18 @@ class TjQuizElement extends HTMLElement {
         const sectionId = input.dataset.sectionId;
         const blankIndex = input.dataset.blankIndex;
         const userAnswer = input.value.trim().toLowerCase();
-        
+
         // Store the user's answer with section-blank key
         const key = `${sectionId}-${blankIndex}`;
         this.clozeAnswers[key] = userAnswer;
-        
+
         // Check if all cloze blanks are filled
         if (this.checkAllClozeAnswered()) {
             // Check if all sections are complete to enable score button
-            const vocabComplete = this.vocabularySections.length === 0 || 
+            const vocabComplete = this.vocabularySections.length === 0 ||
                 Object.keys(this.vocabUserChoices).length === this.getTotalVocabWords();
             const questionsComplete = this.totalQuestions === 0 || this.checkAllQuestionsAnswered();
-            
+
             if (vocabComplete && questionsComplete) {
                 const checkScoreButton = this.shadowRoot.getElementById('checkScoreButton');
                 checkScoreButton.disabled = false;
@@ -760,15 +760,15 @@ class TjQuizElement extends HTMLElement {
     }
 
     checkAllClozeAnswered() {
-        const totalBlanks = this.clozeSections.reduce((total, section) => 
+        const totalBlanks = this.clozeSections.reduce((total, section) =>
             total + section.words.length, 0);
-        const filledBlanks = Object.keys(this.clozeAnswers).filter(key => 
+        const filledBlanks = Object.keys(this.clozeAnswers).filter(key =>
             this.clozeAnswers[key].length > 0).length;
         return filledBlanks === totalBlanks;
     }
 
     getTotalVocabWords() {
-        return this.vocabularySections.reduce((total, section) => 
+        return this.vocabularySections.reduce((total, section) =>
             total + (section.vocabulary ? Object.keys(section.vocabulary).length : 0), 0);
     }
 
@@ -815,34 +815,34 @@ class TjQuizElement extends HTMLElement {
         // Calculate vocabulary score by comparing user choices to correct answers
         this.vocabScore = 0;
         const totalVocab = this.getTotalVocabWords();
-        
+
         // Show feedback for each vocabulary section
         this.vocabularySections.forEach((vocabSection) => {
             const { vocabulary, sectionId } = vocabSection;
             if (!vocabulary) return; // Skip if vocabulary is undefined
             const words = Object.keys(vocabulary);
-            
+
             words.forEach((word, wordIndex) => {
                 const key = `${sectionId}-${word}`;
                 const userDefinition = this.vocabUserChoices[key];
                 const correctDefinition = vocabulary[word];
                 const isCorrect = userDefinition === correctDefinition;
-                
+
                 if (isCorrect) {
                     this.vocabScore++;
                 }
-                
+
                 // Find the selected radio button and its cell
                 const radioName = `vocab-${sectionId}-${wordIndex}`;
                 const selectedRadio = this.shadowRoot.querySelector(`input[name="${radioName}"]:checked`);
-                
+
                 if (selectedRadio) {
                     // Disable all radio buttons for this word
                     const allRadios = this.shadowRoot.querySelectorAll(`input[name="${radioName}"]`);
                     allRadios.forEach(radio => {
                         radio.disabled = true;
                         const cell = radio.closest('.vocab-option-cell');
-                        
+
                         if (radio.value === correctDefinition) {
                             cell.classList.add('correct');
                         } else if (radio.checked) {
@@ -852,7 +852,7 @@ class TjQuizElement extends HTMLElement {
                 }
             });
         });
-        
+
         const vocabScoreElement = this.shadowRoot.getElementById('vocabScore');
         vocabScoreElement.textContent = `Vocabulary Score: ${this.vocabScore}/${totalVocab}`;
         vocabScoreElement.classList.remove('hidden');
@@ -862,26 +862,26 @@ class TjQuizElement extends HTMLElement {
     showClozeScore() {
         // Calculate cloze score by comparing user answers to correct answers
         this.clozeScore = 0;
-        const totalBlanks = this.clozeSections.reduce((total, section) => 
+        const totalBlanks = this.clozeSections.reduce((total, section) =>
             total + section.words.length, 0);
-        
+
         // Show feedback for each cloze blank
         const clozeInputs = this.shadowRoot.querySelectorAll('.cloze-blank');
         clozeInputs.forEach(input => {
             const correctAnswer = input.dataset.answer.toLowerCase();
             const userAnswer = input.value.trim().toLowerCase();
             const isCorrect = userAnswer === correctAnswer;
-            
+
             if (isCorrect) {
                 this.clozeScore++;
                 input.classList.add('correct');
             } else {
                 input.classList.add('incorrect');
             }
-            
+
             input.disabled = true;
         });
-        
+
         const clozeScoreElement = this.shadowRoot.getElementById('clozeScore');
         clozeScoreElement.textContent = `Fill in the Blanks Score: ${this.clozeScore}/${totalBlanks}`;
         clozeScoreElement.classList.remove('hidden');
@@ -979,7 +979,7 @@ class TjQuizElement extends HTMLElement {
             pauseIcon.classList.add('hidden');
         }
     }
-    
+
     stopAllAudio() {
         if (window.speechSynthesis && (window.speechSynthesis.speaking || window.speechSynthesis.paused)) {
             window.speechSynthesis.cancel();
@@ -998,7 +998,7 @@ class TjQuizElement extends HTMLElement {
 
     handleTTS() {
         if (this.audioPlayer && !this.audioPlayer.paused) this.audioPlayer.pause();
-        
+
         if (window.speechSynthesis.paused) {
             window.speechSynthesis.resume();
             this.setAudioIcon('playing');
@@ -1019,7 +1019,7 @@ class TjQuizElement extends HTMLElement {
 
     handleAudioFile() {
         if (window.speechSynthesis.speaking || window.speechSynthesis.paused) window.speechSynthesis.cancel();
-        
+
         if (!this.audioPlayer) {
             this.audioPlayer = new Audio(this.audioSrc);
             this.audioPlayer.onplaying = () => this.setAudioIcon('playing');
@@ -1027,7 +1027,7 @@ class TjQuizElement extends HTMLElement {
             this.audioPlayer.onended = () => this.setAudioIcon('paused');
             this.audioPlayer.onerror = (e) => {
                 console.error("Audio file error. Falling back to TTS.", e);
-                this.audioPlayer = null; 
+                this.audioPlayer = null;
                 this.handleTTS();
             };
         }
@@ -1105,13 +1105,13 @@ class TjQuizElement extends HTMLElement {
                 <span>${option}</span>
             </label>
         `).join('');
-        
+
         const explanationHtml = q.e ? `<div class="explanation hidden" id="explanation-${questionId}">
             <div class="explanation-content">
                 <strong>Explanation:</strong> ${q.e}
             </div>
         </div>` : '';
-        
+
         const questionBlock = document.createElement('div');
         questionBlock.className = 'question-block';
         questionBlock.innerHTML = `
@@ -1121,27 +1121,27 @@ class TjQuizElement extends HTMLElement {
         `;
         return questionBlock;
     }
-    
+
     generateQuiz() {
         const questionsSection = this.shadowRoot.getElementById('questionsSection');
         const readingSection = this.shadowRoot.getElementById('readingSection');
         const checkScoreButton = this.shadowRoot.getElementById('checkScoreButton');
         console.log('generateQuiz called, questions total:', this.totalQuestions);
-        
-    // Clear previous questions and reading content
-    questionsSection.innerHTML = '';
+
+        // Clear previous questions and reading content
+        questionsSection.innerHTML = '';
         // Reset counters and button state
         this.score = 0;
         this.questionsAnswered = 0;
-    this.userQuestionAnswers = {};
+        this.userQuestionAnswers = {};
         checkScoreButton.disabled = true;
 
-    // We'll render vocab and cloze inline according to orderedSections.
-    // Hide the global vocab/cloze areas to avoid duplicate rendering.
-    const vocabSectionGlobal = this.shadowRoot.getElementById('vocabSection');
-    const clozeSectionGlobal = this.shadowRoot.getElementById('clozeSection');
-    if (vocabSectionGlobal) vocabSectionGlobal.classList.add('hidden');
-    if (clozeSectionGlobal) clozeSectionGlobal.classList.add('hidden');
+        // We'll render vocab and cloze inline according to orderedSections.
+        // Hide the global vocab/cloze areas to avoid duplicate rendering.
+        const vocabSectionGlobal = this.shadowRoot.getElementById('vocabSection');
+        const clozeSectionGlobal = this.shadowRoot.getElementById('clozeSection');
+        if (vocabSectionGlobal) vocabSectionGlobal.classList.add('hidden');
+        if (clozeSectionGlobal) clozeSectionGlobal.classList.add('hidden');
 
         // Hide the reading section if there are no text passages
         if (!this.passages || this.passages.length === 0) {
@@ -1155,11 +1155,11 @@ class TjQuizElement extends HTMLElement {
         passageContentArea.innerHTML = '';
         const orderedQuestionItems = [];
 
-    // trackers for which parsed vocab/cloze section to render next
-    let vocabRenderIndex = 0;
-    let clozeRenderIndex = 0;
+        // trackers for which parsed vocab/cloze section to render next
+        let vocabRenderIndex = 0;
+        let clozeRenderIndex = 0;
 
-    this.orderedSections.forEach((sec) => {
+        this.orderedSections.forEach((sec) => {
             if (sec.type === 'text') {
                 // render passage
                 const passageWrapper = document.createElement('div');
@@ -1250,7 +1250,7 @@ class TjQuizElement extends HTMLElement {
             }
         });
 
-    // Note: orderedSections contains 'questions' entries for global groups as well, so do not double-append globals here
+        // Note: orderedSections contains 'questions' entries for global groups as well, so do not double-append globals here
 
         // Flatten the questions for scoring and render
         this.currentQuestions = orderedQuestionItems.map(i => i.question);
@@ -1367,7 +1367,7 @@ class TjQuizElement extends HTMLElement {
         const hasVocab = this.vocabularySections.length > 0;
         const hasQuestions = this.totalQuestions > 0;
         const hasCloze = this.clozeSections.length > 0;
-        
+
         if (hasCloze && !hasVocab && !hasQuestions) {
             // Only cloze exists - score button should be enabled when all cloze answers are filled
             // This will be handled by handleClozeAnswer, so we don't need to do anything here
@@ -1471,106 +1471,114 @@ class TjQuizElement extends HTMLElement {
         if (this.vocabularySections.length > 0 && !this.vocabSubmitted) {
             this.showVocabScore();
         }
-        
+
         // Calculate and show cloze score if cloze exists and hasn't been scored yet
         if (this.clozeSections.length > 0 && !this.clozeSubmitted) {
             this.showClozeScore();
         }
-        
+
         const resultScore = this.shadowRoot.getElementById('resultScore');
         const checkScoreContainer = this.shadowRoot.getElementById('checkScoreContainer');
         const resultArea = this.shadowRoot.getElementById('resultArea');
         const postScoreActions = this.shadowRoot.getElementById('postScoreActions');
         const sendButton = this.shadowRoot.getElementById('sendButton');
         const tryAgainButton = this.shadowRoot.getElementById('tryAgainButton');
-        
+        const studentInfoSection = this.shadowRoot.getElementById('studentInfoSection');
+
         // Calculate total score (vocabulary + cloze + questions)
         const vocabTotal = this.getTotalVocabWords();
         const clozeTotal = this.clozeSections.reduce((total, section) => total + section.words.length, 0);
         const questionTotal = this.totalQuestions;
         const totalPossible = vocabTotal + clozeTotal + questionTotal;
         const totalEarned = this.vocabScore + this.clozeScore + this.score;
-        
+
         console.log('Final scoring - Vocab total:', vocabTotal, 'Cloze total:', clozeTotal, 'Question total:', questionTotal, 'Total possible:', totalPossible);
         console.log('Final scoring - Vocab score:', this.vocabScore, 'Cloze score:', this.clozeScore, 'Question score:', this.score, 'Total earned:', totalEarned);
-        
+
+        // Get student info
+        const nickname = this.shadowRoot.getElementById('nickname').value || '-';
+        const homeroom = this.shadowRoot.getElementById('homeroom').value || '-';
+        const studentId = this.shadowRoot.getElementById('studentId').value || '-';
+
+        // Get timestamp
+        const now = new Date();
+        const timestamp = now.toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+        // Hide student info section
+        if (studentInfoSection) {
+            studentInfoSection.style.display = 'none';
+        }
+
         // Update score display to show combined score with better formatting
         if (totalPossible > 0) {
             const percentage = Math.round((totalEarned / totalPossible) * 100);
-            
+
             // Determine how many sections we have
             const sectionsPresent = [];
             if (vocabTotal > 0) sectionsPresent.push('vocab');
             if (clozeTotal > 0) sectionsPresent.push('cloze');
             if (questionTotal > 0) sectionsPresent.push('questions');
-            
-            if (sectionsPresent.length > 1) {
-                // Multiple sections - show breakdown
-                let breakdownHTML = '';
-                if (vocabTotal > 0) {
-                    breakdownHTML += `
-                        <div class="score-section">
-                            <span class="score-label">Vocabulary:</span>
-                            <span class="score-value">${this.vocabScore}/${vocabTotal}</span>
-                        </div>`;
-                }
-                if (clozeTotal > 0) {
-                    breakdownHTML += `
-                        <div class="score-section">
-                            <span class="score-label">Fill-in-the-blank:</span>
-                            <span class="score-value">${this.clozeScore}/${clozeTotal}</span>
-                        </div>`;
-                }
-                if (questionTotal > 0) {
-                    breakdownHTML += `
-                        <div class="score-section">
-                            <span class="score-label">Questions:</span>
-                            <span class="score-value">${this.score}/${questionTotal}</span>
-                        </div>`;
-                }
-                
-                resultScore.innerHTML = `
-                    <div class="score-main">${totalEarned} / ${totalPossible}</div>
-                    <div class="score-percentage">${percentage}%</div>
-                    <div class="score-breakdown">
+
+            let breakdownHTML = '';
+            if (vocabTotal > 0) {
+                breakdownHTML += `
+                    <div class="score-section">
+                        <span class="score-label">Vocabulary:</span>
+                        <span class="score-value">${this.vocabScore}/${vocabTotal}</span>
+                    </div>`;
+            }
+            if (clozeTotal > 0) {
+                breakdownHTML += `
+                    <div class="score-section">
+                        <span class="score-label">Fill-in-the-blank:</span>
+                        <span class="score-value">${this.clozeScore}/${clozeTotal}</span>
+                    </div>`;
+            }
+            if (questionTotal > 0) {
+                breakdownHTML += `
+                    <div class="score-section">
+                        <span class="score-label">Questions:</span>
+                        <span class="score-value">${this.score}/${questionTotal}</span>
+                    </div>`;
+            }
+
+            resultScore.innerHTML = `
+                <div class="score-report-card">
+                    <div class="student-details">
+                        <div><strong>Name:</strong> ${nickname}</div>
+                        <div><strong>ID:</strong> ${studentId}</div>
+                        <div><strong>Class:</strong> ${homeroom}</div>
+                        <div><strong>Date:</strong> ${timestamp}</div>
+                    </div>
+                    <div class="score-summary">
+                        <div class="score-main-compact">${totalEarned} / ${totalPossible} (${percentage}%)</div>
+                    </div>
+                    <div class="score-breakdown-compact">
                         ${breakdownHTML}
                     </div>
-                `;
-            } else if (vocabTotal > 0) {
-                // Vocabulary only
-                resultScore.innerHTML = `
-                    <div class="score-main">${this.vocabScore} / ${vocabTotal}</div>
-                    <div class="score-percentage">${percentage}%</div>
-                    <div class="score-label">Vocabulary Score</div>
-                `;
-            } else if (clozeTotal > 0) {
-                // Cloze only
-                resultScore.innerHTML = `
-                    <div class="score-main">${this.clozeScore} / ${clozeTotal}</div>
-                    <div class="score-percentage">${percentage}%</div>
-                    <div class="score-label">Fill-in-the-blank Score</div>
-                `;
-            } else {
-                // Questions only
-                resultScore.innerHTML = `
-                    <div class="score-main">${this.score} / ${questionTotal}</div>
-                    <div class="score-percentage">${percentage}%</div>
-                    <div class="score-label">Questions Score</div>
-                `;
-            }
+                </div>
+            `;
         } else {
-            const percentage = Math.round((this.score / this.totalQuestions) * 100);
-            resultScore.innerHTML = `
-                <div class="score-main">${this.score} / ${this.totalQuestions}</div>
-                <div class="score-percentage">${percentage}%</div>
+            // Fallback for 0 total possible
+             resultScore.innerHTML = `
+                <div class="score-report-card">
+                    <div class="student-details">
+                        <div><strong>Name:</strong> ${nickname}</div>
+                        <div><strong>ID:</strong> ${studentId}</div>
+                        <div><strong>Class:</strong> ${homeroom}</div>
+                        <div><strong>Date:</strong> ${timestamp}</div>
+                    </div>
+                    <div class="score-summary">
+                        <div class="score-main-compact">0 / 0 (0%)</div>
+                    </div>
+                </div>
             `;
         }
-        
-        const scorePercentage = totalPossible > 0 ? totalEarned / totalPossible : this.score / this.totalQuestions;
+
+        const scorePercentage = totalPossible > 0 ? totalEarned / totalPossible : 0;
         resultScore.className = '';
-        if (scorePercentage >= 0.8) resultScore.classList.add('high');
-        else if (scorePercentage >= 0.5) resultScore.classList.add('medium');
-        else resultScore.classList.add('low');
+        // We don't need high/medium/low classes on resultScore anymore as we use custom styling inside, 
+        // but we can keep them if they affect other things. 
         
         // Hide the check score button once results are shown
         if (checkScoreContainer) {
@@ -1738,8 +1746,10 @@ class TjQuizElement extends HTMLElement {
         const sendButton = this.shadowRoot.getElementById('sendButton');
         const tryAgainButton = this.shadowRoot.getElementById('tryAgainButton');
         const studentInputs = this.getStudentInputs();
-        
+        const studentInfoSection = this.shadowRoot.getElementById('studentInfoSection');
+
         quizForm.reset();
+        if (studentInfoSection) studentInfoSection.style.display = '';
         if (resultArea) resultArea.classList.add('hidden');
         if (postScoreActions) postScoreActions.classList.add('hidden');
         if (checkScoreContainer) checkScoreContainer.classList.remove('hidden');
@@ -1769,7 +1779,7 @@ class TjQuizElement extends HTMLElement {
         const allRadios = Array.from(this.shadowRoot.querySelectorAll('input[type="radio"]'));
         allRadios.forEach(radio => {
             radio.disabled = false;
-            try { delete radio.dataset.answered; } catch (e) {}
+            try { delete radio.dataset.answered; } catch (e) { }
         });
 
         const allLabels = Array.from(this.shadowRoot.querySelectorAll('.option-label'));

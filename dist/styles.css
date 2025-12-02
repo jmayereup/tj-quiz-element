@@ -969,3 +969,51 @@ fieldset > legend {
 .cloze-section-wrapper:last-child {
     margin-bottom: 0;
 }
+
+/* Compact Score Report Styles */
+.score-report-card {
+    background-color: var(--card-bg-light);
+    border: 1px solid var(--border-light);
+    border-radius: 0.5rem;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    text-align: left;
+}
+
+.student-details {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+    border-bottom: 1px solid var(--border-light);
+    padding-bottom: 0.5rem;
+}
+
+.student-details div {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.score-summary {
+    text-align: center;
+    margin-bottom: 0.5rem;
+}
+
+.score-main-compact {
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: var(--primary-color);
+}
+
+.score-breakdown-compact {
+    font-size: 0.9rem;
+}
+
+.score-breakdown-compact .score-section {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0.25rem;
+}
+
