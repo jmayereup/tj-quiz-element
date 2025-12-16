@@ -1478,6 +1478,7 @@ class TjQuizElement extends HTMLElement {
         }
 
         const resultScore = this.shadowRoot.getElementById('resultScore');
+        const resultTitle = this.shadowRoot.getElementById('resultTitle');
         const checkScoreContainer = this.shadowRoot.getElementById('checkScoreContainer');
         const resultArea = this.shadowRoot.getElementById('resultArea');
         const postScoreActions = this.shadowRoot.getElementById('postScoreActions');
@@ -1497,6 +1498,7 @@ class TjQuizElement extends HTMLElement {
 
         // Get student info
         const nickname = this.shadowRoot.getElementById('nickname').value || '-';
+        if (resultTitle) resultTitle.textContent = this.title;
         const homeroom = this.shadowRoot.getElementById('homeroom').value || '-';
         const studentId = this.shadowRoot.getElementById('studentId').value || '-';
 
@@ -1551,7 +1553,7 @@ class TjQuizElement extends HTMLElement {
                         <div><strong>Date:</strong> ${timestamp}</div>
                     </div>
                     <div class="score-summary">
-                        <div class="score-main-compact">${totalEarned} / ${totalPossible} (${percentage}%)</div>
+                        <div class="score-main-compact">Score: ${totalEarned} / ${totalPossible} (${percentage}%)</div>
                     </div>
                     <div class="score-breakdown-compact">
                         ${breakdownHTML}
@@ -1569,7 +1571,7 @@ class TjQuizElement extends HTMLElement {
                         <div><strong>Date:</strong> ${timestamp}</div>
                     </div>
                     <div class="score-summary">
-                        <div class="score-main-compact">0 / 0 (0%)</div>
+                        <div class="score-main-compact">Score: 0 / 0 (0%)</div>
                     </div>
                 </div>
             `;
