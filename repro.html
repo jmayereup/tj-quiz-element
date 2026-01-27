@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Quiz Ordering Reproduction V3</title>
+</head>
+
+<body>
+    <tj-quiz-element>
+        Multi-Passage Order Test
+        ---text
+        Passage 1: This is the first passage.
+        ---vocab
+        Word1: Def 1
+        ---questions
+        Q: This question is for Passage 1. It should be ABOVE Passage 2.
+        A: Option 1 [correct]
+        A: Option 2
+        ---text
+        Passage 2: This is the second passage. It should be BELOW the first question.
+        ---questions
+        Q: This question is for Passage 2.
+        A: Option 1 [correct]
+        A: Option 2
+    </tj-quiz-element>
+
+    <script type="module" src="./tj-quiz-element.js"></script>
+</body>
+
+</html>

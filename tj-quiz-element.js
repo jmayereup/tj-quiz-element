@@ -171,14 +171,19 @@ class TjQuizElement extends HTMLElement {
                 const questionCount = match && match[1] ? parseInt(match[1]) : null;
                 // parseQuestions returns the full parsed bank (no truncation here)
                 const parsedQuestions = this.parseQuestions(sectionContent);
-                // If the last section was a text, attach these questions to that text's sectionId
-                if ((lastSectionType === 'text' || lastSectionType === 'instructions') && lastTextSectionId !== null) {
+
+                // Determine if these questions should be "tied" to the passage (embedded inside its card)
+                // or rendered as a standalone section. We tie them if they immediately follow a text/instruction 
+                // section or follow another questions section that was tied.
+                const isTied = (lastSectionType === 'text' || lastSectionType === 'instructions' || (lastSectionType === 'questions' && this.orderedSections.length > 0 && this.orderedSections[this.orderedSections.length - 1].tiedToPassage));
+
+                if (lastTextSectionId !== null) {
                     this.questionGroups.push({ sectionId: lastTextSectionId, questions: parsedQuestions, maxQuestions: questionCount });
-                    this.orderedSections.push({ type: 'questions', sectionId: lastTextSectionId, questions: parsedQuestions, maxQuestions: questionCount });
+                    this.orderedSections.push({ type: 'questions', sectionId: lastTextSectionId, questions: parsedQuestions, maxQuestions: questionCount, tiedToPassage: isTied });
                 } else {
                     // Global questions (not tied to a text section)
                     this.questionGroups.push({ sectionId: null, questions: parsedQuestions, maxQuestions: questionCount });
-                    this.orderedSections.push({ type: 'questions', sectionId: null, questions: parsedQuestions, maxQuestions: questionCount });
+                    this.orderedSections.push({ type: 'questions', sectionId: null, questions: parsedQuestions, maxQuestions: questionCount, tiedToPassage: false });
                 }
                 lastSectionType = 'questions';
             } else {
@@ -205,10 +210,10 @@ class TjQuizElement extends HTMLElement {
             }
         }
 
-        // Update the rendered content
-        this.shadowRoot.getElementById('quizTitle').textContent = this.title || 'TJ Quiz Element';
-        this.shadowRoot.getElementById('quizDescription').textContent = 'Read the passage, then answer the questions below.';
-        this.shadowRoot.getElementById('passageText').textContent = this.passage;
+        // Update the rendered content title if found
+        if (this.title) {
+            this.shadowRoot.getElementById('quizTitle').textContent = this.title;
+        }
 
         const totalQuestionsParsed = this.questionGroups.reduce((sum, g) => sum + (g.questions ? g.questions.length : 0), 0);
         console.log('Parsed:', {
@@ -589,71 +594,61 @@ class TjQuizElement extends HTMLElement {
             cardClasses: ['vocab-card']
         });
 
-        // build small table similar to global rendering
-        const table = document.createElement('div');
-        table.className = 'vocab-grid-table';
-
         const words = Object.keys(vocabulary);
-        const allDefinitions = Object.values(vocabulary);
+        // Map words to letters A, B, C...
+        const wordMap = words.map((word, i) => ({
+            letter: String.fromCharCode(65 + i), // A, B, C...
+            word: word,
+            definition: vocabulary[word]
+        }));
 
-        // shuffle definitions for inline render for variety
-        const shuffledDefs = [...allDefinitions];
-        this.shuffleArray(shuffledDefs);
+        // Word Bank
+        const bank = document.createElement('div');
+        bank.className = 'vocab-word-bank';
+        bank.innerHTML = `
+            <div class="vocab-bank-title">Word Bank</div>
+            <div class="vocab-bank-items">
+                ${wordMap.map(item => `<span class="vocab-bank-item">${item.letter}: ${item.word.toUpperCase()}</span>`).join('')}
+            </div>
+        `;
+        content.appendChild(bank);
 
-        const headerRow = document.createElement('div');
-        headerRow.className = 'vocab-grid-header';
-        const wordHeaderCell = document.createElement('div');
-        wordHeaderCell.className = 'vocab-grid-header-cell';
-        wordHeaderCell.textContent = 'Word';
-        headerRow.appendChild(wordHeaderCell);
-        shuffledDefs.forEach(def => {
-            const cell = document.createElement('div');
-            cell.className = 'vocab-grid-header-cell';
-            cell.textContent = def;
-            headerRow.appendChild(cell);
-        });
-        table.appendChild(headerRow);
+        // Matching rows (shuffled definitions)
+        const matchingContainer = document.createElement('div');
+        matchingContainer.className = 'vocab-matching-container';
 
-        words.forEach((word, wi) => {
+        const shuffledItems = [...wordMap];
+        this.shuffleArray(shuffledItems);
+
+        shuffledItems.forEach((item) => {
             const row = document.createElement('div');
-            row.className = 'vocab-grid-row';
-            const wordCell = document.createElement('div');
-            wordCell.className = 'vocab-grid-cell vocab-word-cell';
-            wordCell.textContent = word;
-            row.appendChild(wordCell);
+            row.className = 'vocab-matching-row';
 
-            // Build 4 choices per word: correct + 3 distractors
-            const correctDef = vocabulary[word];
-            const otherDefs = shuffledDefs.filter(d => d !== correctDef);
-            const choices = [correctDef, ...otherDefs.slice(0, 3)];
-            this.shuffleArray(choices);
+            const inputGroup = document.createElement('div');
+            inputGroup.className = 'vocab-matching-input-group';
 
-            choices.forEach((def, di) => {
-                const cell = document.createElement('div');
-                cell.className = 'vocab-grid-cell vocab-option-cell';
-                // show label for the definition so the mobile stacked layout
-                // isn't missing the definition text when the header is hidden
-                const radioContainer = document.createElement('div');
-                radioContainer.className = 'vocab-radio-container';
-                const radio = document.createElement('input');
-                radio.type = 'radio';
-                radio.name = `vocab-${sectionId}-${wi}`;
-                radio.value = def;
-                radio.id = `vocab-${sectionId}-${wi}-${di}`;
-                radioContainer.appendChild(radio);
-                cell.appendChild(radioContainer);
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.className = 'vocab-matching-input';
+            input.maxLength = 1;
+            input.dataset.sectionId = sectionId;
+            input.dataset.word = item.word;
+            input.dataset.correctLetter = item.letter;
+            input.autocomplete = 'off';
+            input.title = 'Enter the letter for this definition';
 
-                const defLabel = document.createElement('span');
-                defLabel.className = 'vocab-def-label';
-                defLabel.textContent = def;
-                cell.appendChild(defLabel);
-                row.appendChild(cell);
-            });
+            inputGroup.appendChild(input);
+            row.appendChild(inputGroup);
 
-            table.appendChild(row);
+            const defText = document.createElement('div');
+            defText.className = 'vocab-definition-text';
+            defText.textContent = item.definition;
+            row.appendChild(defText);
+
+            matchingContainer.appendChild(row);
         });
 
-        content.appendChild(table);
+        content.appendChild(matchingContainer);
         targetContainer.appendChild(card);
     }
 
@@ -697,39 +692,34 @@ class TjQuizElement extends HTMLElement {
     }
 
     handleVocabAnswer(e) {
-        if (e.target.type !== 'radio' || !e.target.name.startsWith('vocab-')) return;
+        const target = e.target;
+        if (target.type === 'text' && target.classList.contains('vocab-matching-input')) {
+            const value = target.value.trim().toUpperCase();
+            target.value = value;
 
-        const radio = e.target;
-        const nameParts = radio.name.split('-');
-        const sectionId = parseInt(nameParts[1]);
-        const wordIndex = parseInt(nameParts[2]);
+            const sectionId = parseInt(target.dataset.sectionId);
+            const word = target.dataset.word;
 
-        // Find the vocabulary section and word
-        const vocabSection = this.vocabularySections.find(vs => vs.sectionId === sectionId);
-        if (!vocabSection || !vocabSection.vocabulary) return;
-
-        const words = Object.keys(vocabSection.vocabulary);
-        const word = words[wordIndex];
-        const selectedDefinition = radio.value;
-
-        // Store the user's choice with section-word key
-        const key = `${sectionId}-${word}`;
-        this.vocabUserChoices[key] = selectedDefinition;
-
-        // Check if all vocabulary questions are answered
-        const totalVocabWords = this.vocabularySections.reduce((total, section) =>
-            total + (section.vocabulary ? Object.keys(section.vocabulary).length : 0), 0);
-        const answeredVocabWords = Object.keys(this.vocabUserChoices).length;
-
-        if (answeredVocabWords === totalVocabWords) {
-            // Check if all sections are complete to enable score button
-            const allQuestionsAnswered = this.totalQuestions === 0 || this.checkAllQuestionsAnswered();
-            const allClozeAnswered = this.checkAllClozeAnswered();
-
-            if (allQuestionsAnswered && allClozeAnswered) {
-                const checkScoreButton = this.shadowRoot.getElementById('checkScoreButton');
-                checkScoreButton.disabled = false;
+            const key = `${sectionId}-${word}`;
+            if (value) {
+                this.vocabUserChoices[key] = value;
+            } else {
+                delete this.vocabUserChoices[key];
             }
+
+            this.updateCheckScoreButtonState();
+        }
+    }
+
+    updateCheckScoreButtonState() {
+        const vocabComplete = this.vocabularySections.length === 0 ||
+            Object.keys(this.vocabUserChoices).length === this.getTotalVocabWords();
+        const questionsComplete = this.totalQuestions === 0 || this.checkAllQuestionsAnswered();
+        const clozeComplete = this.checkAllClozeAnswered();
+
+        if (vocabComplete && questionsComplete && clozeComplete) {
+            const checkScoreButton = this.shadowRoot.getElementById('checkScoreButton');
+            if (checkScoreButton) checkScoreButton.disabled = false;
         }
     }
 
@@ -819,43 +809,40 @@ class TjQuizElement extends HTMLElement {
         // Show feedback for each vocabulary section
         this.vocabularySections.forEach((vocabSection) => {
             const { vocabulary, sectionId } = vocabSection;
-            if (!vocabulary) return; // Skip if vocabulary is undefined
+            if (!vocabulary) return;
             const words = Object.keys(vocabulary);
 
-            words.forEach((word, wordIndex) => {
+            words.forEach((word) => {
                 const key = `${sectionId}-${word}`;
-                const userDefinition = this.vocabUserChoices[key];
-                const correctDefinition = vocabulary[word];
-                const isCorrect = userDefinition === correctDefinition;
+                const userChoice = this.vocabUserChoices[key];
 
-                if (isCorrect) {
-                    this.vocabScore++;
+                // Find the input for this word
+                const input = this.shadowRoot.querySelector(`.vocab-matching-input[data-section-id="${sectionId}"][data-word="${word}"]`);
+                if (!input) return;
+
+                const correctLetter = input.dataset.correctLetter;
+                const row = input.closest('.vocab-matching-row');
+
+                input.disabled = true;
+
+                let feedbackIcon = row.querySelector('.feedback-icon');
+                if (!feedbackIcon) {
+                    feedbackIcon = document.createElement('span');
+                    feedbackIcon.className = 'feedback-icon';
+                    row.appendChild(feedbackIcon);
                 }
 
-                // Find the selected radio button and its cell
-                const radioName = `vocab-${sectionId}-${wordIndex}`;
-                const selectedRadio = this.shadowRoot.querySelector(`input[name="${radioName}"]:checked`);
-
-                if (selectedRadio) {
-                    // Disable all radio buttons for this word
-                    const allRadios = this.shadowRoot.querySelectorAll(`input[name="${radioName}"]`);
-                    allRadios.forEach(radio => {
-                        radio.disabled = true;
-                        const cell = radio.closest('.vocab-option-cell');
-
-                        if (radio.value === correctDefinition) {
-                            cell.classList.add('correct');
-                        } else if (radio.checked) {
-                            cell.classList.add('incorrect');
-                        }
-                    });
+                if (userChoice === correctLetter) {
+                    this.vocabScore++;
+                    row.classList.add('correct');
+                    feedbackIcon.textContent = ' ✅';
+                } else {
+                    row.classList.add('incorrect');
+                    feedbackIcon.textContent = ` ❌ (Correct: ${correctLetter})`;
                 }
             });
         });
 
-        const vocabScoreElement = this.shadowRoot.getElementById('vocabScore');
-        vocabScoreElement.textContent = `Vocabulary Score: ${this.vocabScore}/${totalVocab}`;
-        vocabScoreElement.classList.remove('hidden');
         this.vocabSubmitted = true;
     }
 
@@ -882,9 +869,6 @@ class TjQuizElement extends HTMLElement {
             input.disabled = true;
         });
 
-        const clozeScoreElement = this.shadowRoot.getElementById('clozeScore');
-        clozeScoreElement.textContent = `Fill in the Blanks Score: ${this.clozeScore}/${totalBlanks}`;
-        clozeScoreElement.classList.remove('hidden');
         this.clozeSubmitted = true;
     }
 
@@ -905,10 +889,10 @@ class TjQuizElement extends HTMLElement {
 
         quizForm.addEventListener('change', (e) => {
             this.handleAnswer(e);
-            this.handleVocabAnswer(e);
         });
         quizForm.addEventListener('input', (e) => {
             this.handleClozeAnswer(e);
+            this.handleVocabAnswer(e);
         });
         quizForm.addEventListener('submit', (e) => this.handleSubmit(e));
         sendButton.addEventListener('click', () => this.sendScore());
@@ -1123,36 +1107,20 @@ class TjQuizElement extends HTMLElement {
     }
 
     generateQuiz() {
-        const questionsSection = this.shadowRoot.getElementById('questionsSection');
-        const readingSection = this.shadowRoot.getElementById('readingSection');
         const checkScoreButton = this.shadowRoot.getElementById('checkScoreButton');
+        const dynamicContent = this.shadowRoot.getElementById('dynamicContent');
         console.log('generateQuiz called, questions total:', this.totalQuestions);
 
-        // Clear previous questions and reading content
-        questionsSection.innerHTML = '';
+        // Clear previous content
+        dynamicContent.innerHTML = '';
+
         // Reset counters and button state
         this.score = 0;
         this.questionsAnswered = 0;
         this.userQuestionAnswers = {};
         checkScoreButton.disabled = true;
 
-        // We'll render vocab and cloze inline according to orderedSections.
-        // Hide the global vocab/cloze areas to avoid duplicate rendering.
-        const vocabSectionGlobal = this.shadowRoot.getElementById('vocabSection');
-        const clozeSectionGlobal = this.shadowRoot.getElementById('clozeSection');
-        if (vocabSectionGlobal) vocabSectionGlobal.classList.add('hidden');
-        if (clozeSectionGlobal) clozeSectionGlobal.classList.add('hidden');
-
-        // Hide the reading section if there are no text passages
-        if (!this.passages || this.passages.length === 0) {
-            if (readingSection) readingSection.classList.add('hidden');
-        } else {
-            if (readingSection) readingSection.classList.remove('hidden');
-        }
-
-        // Render sections in original order using orderedSections to keep questions where they appear
-        const passageContentArea = this.shadowRoot.querySelector('.passage-content');
-        passageContentArea.innerHTML = '';
+        // Render sections in original order using orderedSections
         const orderedQuestionItems = [];
 
         // trackers for which parsed vocab/cloze section to render next
@@ -1161,15 +1129,15 @@ class TjQuizElement extends HTMLElement {
 
         this.orderedSections.forEach((sec) => {
             if (sec.type === 'text') {
-                // render passage
+                // render passage as a card
+                const { card, content } = this.createSectionCard(sec.heading || `Reading Passage`, {
+                    cardClasses: ['passage-card']
+                });
+
                 const passageWrapper = document.createElement('div');
                 passageWrapper.className = 'passage-wrapper';
-                const passageHeader = document.createElement('h3');
-                passageHeader.className = 'passage-header';
-                const passageHeading = sec.heading || `Passage ${sec.sectionId + 1}`;
-                passageHeader.textContent = passageHeading;
 
-                // per-passage audio button
+                // Audio toggle
                 const passageAudioButton = document.createElement('button');
                 passageAudioButton.type = 'button';
                 passageAudioButton.className = 'passage-audio-toggle';
@@ -1178,115 +1146,77 @@ class TjQuizElement extends HTMLElement {
                     <svg class="play-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
                     <svg class="pause-icon hidden" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>
                 `;
-                passageHeader.appendChild(passageAudioButton);
-                // Render passage text as separate paragraphs so blank lines create new <p> elements
-                passageWrapper.appendChild(passageHeader);
+
+                // Add header to card content
+                const cardHeader = card.querySelector('.section-card-header');
+                if (cardHeader) {
+                    cardHeader.appendChild(passageAudioButton);
+                }
+
                 const paragraphs = sec.text.split(/\n\s*\n/);
                 paragraphs.forEach(p => {
                     const passageTextEl = document.createElement('p');
                     passageTextEl.className = 'passage-text';
                     if (sec.listening) passageTextEl.classList.add('listening-hidden');
-                    // Set plain text for the paragraph (no <br> conversion)
                     passageTextEl.textContent = p.trim();
                     passageWrapper.appendChild(passageTextEl);
                 });
 
-                // container for questions that appear immediately after this text
-                const qContainer = document.createElement('div');
-                qContainer.className = 'passage-questions';
-                // If this passage has questions placed after it in the orderedSections,
-                // add the same instruction text used in the main questions section so
-                // students see guidance where the questions actually appear.
-                const hasQuestionsForThis = this.orderedSections.some(s => s.type === 'questions' && s.sectionId === sec.sectionId);
-                if (hasQuestionsForThis) {
-                    const qInstruction = document.createElement('p');
-                    qInstruction.className = 'reading-instructions';
-                    qInstruction.textContent = 'Read each question and select the best answer from the choices below.';
-                    qContainer.appendChild(qInstruction);
-                }
-                passageWrapper.appendChild(qContainer);
-                passageContentArea.appendChild(passageWrapper);
-
-                // Questions tied to this passage will be handled by the 'questions' entries
-                // in orderedSections below. We only render the passage and its question
-                // container here to preserve placement.
+                content.appendChild(passageWrapper);
+                dynamicContent.appendChild(card);
             } else if (sec.type === 'instructions') {
-                const headingText = sec.heading || `Section ${sec.sectionId + 1}`;
+                const headingText = sec.heading || `Instructions`;
                 const descriptionHtml = sec.body ? this.formatTextWithLineBreaks(sec.body) : '';
-                const { card, content } = this.createSectionCard(headingText, {
+                const { card } = this.createSectionCard(headingText, {
                     descriptionHtml,
                     cardClasses: ['instruction-card']
                 });
-                passageContentArea.appendChild(card);
-
-                const qContainer = document.createElement('div');
-                qContainer.className = 'passage-questions instruction-questions';
-                content.appendChild(qContainer);
+                dynamicContent.appendChild(card);
             } else if (sec.type === 'vocab') {
-                // Render this vocabulary section inline at this location (if available)
                 const vocabData = this.vocabularySections[vocabRenderIndex++];
                 if (vocabData) {
-                    this.renderVocabInline(vocabData, passageContentArea, vocabRenderIndex - 1);
+                    this.renderVocabInline(vocabData, dynamicContent, vocabRenderIndex - 1);
                 }
             } else if (sec.type === 'cloze') {
-                // Render this cloze section inline at this location (if available)
                 const clozeData = this.clozeSections[clozeRenderIndex++];
                 if (clozeData) {
-                    this.renderClozeInline(clozeData, passageContentArea, clozeRenderIndex - 1);
+                    this.renderClozeInline(clozeData, dynamicContent, clozeRenderIndex - 1);
                 }
             } else if (sec.type === 'questions') {
-                // if questions were placed in orderedSections (global or tied), render them where they appear
-                const targetContainer = sec.sectionId !== null ? (this.shadowRoot.querySelectorAll('.passage-questions')[sec.sectionId]) : questionsSection;
+                // Questions always rendered as a standalone card
+                const { card, content } = this.createSectionCard('Comprehension Questions', {
+                    cardClasses: ['questions-card']
+                });
+
+                const qInstruction = document.createElement('p');
+                qInstruction.className = 'reading-instructions instruction';
+                qInstruction.textContent = 'Read each question and select the best answer from the choices below.';
+                content.appendChild(qInstruction);
+
+                dynamicContent.appendChild(card);
+
                 if (sec.questions && sec.questions.length > 0) {
-                    // Apply per-section maxQuestions selection at render-time so each try picks new random subset
                     const maxForSection = sec.maxQuestions || null;
                     let questionsForSection = [...sec.questions];
                     if (maxForSection && questionsForSection.length > maxForSection) {
                         this.shuffleArray(questionsForSection);
                         questionsForSection = questionsForSection.slice(0, maxForSection);
                     }
-                    questionsForSection.forEach(q => orderedQuestionItems.push({ question: q, container: targetContainer }));
+                    questionsForSection.forEach(q => orderedQuestionItems.push({ question: q, container: content }));
                 }
             }
         });
-
-        // Note: orderedSections contains 'questions' entries for global groups as well, so do not double-append globals here
 
         // Flatten the questions for scoring and render
         this.currentQuestions = orderedQuestionItems.map(i => i.question);
         this.totalQuestions = this.currentQuestions.length;
 
-        // Determine whether any global questions (those targeting questionsSection) exist
-        const hasGlobalQuestions = orderedQuestionItems.some(i => i.container === questionsSection);
-
-        if (this.totalQuestions === 0) {
-            questionsSection.classList.add('hidden');
-        } else {
-            // Only show the global questions header/instruction if there are global questions
-            if (hasGlobalQuestions) {
-                questionsSection.classList.remove('hidden');
-                const legendEl = document.createElement('legend');
-                legendEl.textContent = 'Multiple Choice Questions';
-                questionsSection.appendChild(legendEl);
-
-                const questionsInstruction = document.createElement('p');
-                questionsInstruction.className = 'reading-instructions';
-                questionsInstruction.textContent = 'Read each question and select the best answer from the choices below.';
-                questionsSection.appendChild(questionsInstruction);
-            } else {
-                // if no globals, keep the section hidden (per-passage questions will have their own instruction)
-                questionsSection.classList.add('hidden');
-            }
-
-            // Now append question blocks into their containers (passage containers or global)
-            this.currentQuestions.forEach((q, idx) => {
-                const item = orderedQuestionItems[idx];
-                const container = item && item.container ? item.container : questionsSection;
-                // Ensure container is visible
-                if (container === questionsSection) container.classList.remove('hidden');
-                container.appendChild(this.createQuestionBlock(q, idx));
-            });
-        }
+        // Render questions into their containers
+        this.currentQuestions.forEach((q, idx) => {
+            const item = orderedQuestionItems[idx];
+            const container = item && item.container ? item.container : dynamicContent;
+            container.appendChild(this.createQuestionBlock(q, idx));
+        });
     }
 
     getStudentInputs() {
@@ -1350,10 +1280,10 @@ class TjQuizElement extends HTMLElement {
         if (!this.validateStudentInfoFields({ showAlert: true })) return;
         this.unlockQuizContent();
         this.showStudentInfoAlert('Information saved! Scroll down to begin the quiz.', 'success');
-        const readingSection = this.shadowRoot.getElementById('readingSection');
+        const dynamicContent = this.shadowRoot.getElementById('dynamicContent');
         try {
-            if (readingSection) {
-                readingSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            if (dynamicContent) {
+                dynamicContent.scrollIntoView({ behavior: 'smooth', block: 'start' });
             } else {
                 this.scrollIntoView({ behavior: 'smooth', block: 'start' });
             }
@@ -1478,7 +1408,6 @@ class TjQuizElement extends HTMLElement {
         }
 
         const resultScore = this.shadowRoot.getElementById('resultScore');
-        const resultTitle = this.shadowRoot.getElementById('resultTitle');
         const checkScoreContainer = this.shadowRoot.getElementById('checkScoreContainer');
         const resultArea = this.shadowRoot.getElementById('resultArea');
         const postScoreActions = this.shadowRoot.getElementById('postScoreActions');
@@ -1493,12 +1422,8 @@ class TjQuizElement extends HTMLElement {
         const totalPossible = vocabTotal + clozeTotal + questionTotal;
         const totalEarned = this.vocabScore + this.clozeScore + this.score;
 
-        console.log('Final scoring - Vocab total:', vocabTotal, 'Cloze total:', clozeTotal, 'Question total:', questionTotal, 'Total possible:', totalPossible);
-        console.log('Final scoring - Vocab score:', this.vocabScore, 'Cloze score:', this.clozeScore, 'Question score:', this.score, 'Total earned:', totalEarned);
-
         // Get student info
         const nickname = this.shadowRoot.getElementById('nickname').value || '-';
-        if (resultTitle) resultTitle.textContent = this.title;
         const homeroom = this.shadowRoot.getElementById('homeroom').value || '-';
         const studentId = this.shadowRoot.getElementById('studentId').value || '-';
 
@@ -1511,49 +1436,45 @@ class TjQuizElement extends HTMLElement {
             studentInfoSection.style.display = 'none';
         }
 
-        // Update score display to show combined score with better formatting
+        // Update score display
         if (totalPossible > 0) {
             const percentage = Math.round((totalEarned / totalPossible) * 100);
-
-            // Determine how many sections we have
-            const sectionsPresent = [];
-            if (vocabTotal > 0) sectionsPresent.push('vocab');
-            if (clozeTotal > 0) sectionsPresent.push('cloze');
-            if (questionTotal > 0) sectionsPresent.push('questions');
 
             let breakdownHTML = '';
             if (vocabTotal > 0) {
                 breakdownHTML += `
                     <div class="score-section">
-                        <span class="score-label">Vocabulary:</span>
+                        <span class="score-label">Vocabulary</span>
                         <span class="score-value">${this.vocabScore}/${vocabTotal}</span>
                     </div>`;
             }
             if (clozeTotal > 0) {
                 breakdownHTML += `
                     <div class="score-section">
-                        <span class="score-label">Fill-in-the-blank:</span>
+                        <span class="score-label">Fill-in-the-blank</span>
                         <span class="score-value">${this.clozeScore}/${clozeTotal}</span>
                     </div>`;
             }
             if (questionTotal > 0) {
                 breakdownHTML += `
                     <div class="score-section">
-                        <span class="score-label">Questions:</span>
+                        <span class="score-label">Questions</span>
                         <span class="score-value">${this.score}/${questionTotal}</span>
                     </div>`;
             }
 
             resultScore.innerHTML = `
                 <div class="score-report-card">
+                    <div class="result-title">Performance Report</div>
                     <div class="student-details">
-                        <div><strong>Name:</strong> ${nickname}</div>
+                        <div><strong>NAME:</strong> ${nickname}</div>
                         <div><strong>ID:</strong> ${studentId}</div>
-                        <div><strong>Class:</strong> ${homeroom}</div>
-                        <div><strong>Date:</strong> ${timestamp}</div>
+                        <div><strong>CLASS:</strong> ${homeroom}</div>
+                        <div><strong>DATE:</strong> ${timestamp}</div>
                     </div>
                     <div class="score-summary">
-                        <div class="score-main-compact">Score: ${totalEarned} / ${totalPossible} (${percentage}%)</div>
+                        <div class="score-main-compact">${totalEarned} / ${totalPossible}</div>
+                        <div class="score-percentage">${percentage}% Accuracy</div>
                     </div>
                     <div class="score-breakdown-compact">
                         ${breakdownHTML}
@@ -1561,27 +1482,14 @@ class TjQuizElement extends HTMLElement {
                 </div>
             `;
         } else {
-            // Fallback for 0 total possible
-             resultScore.innerHTML = `
-                <div class="score-report-card">
-                    <div class="student-details">
-                        <div><strong>Name:</strong> ${nickname}</div>
-                        <div><strong>ID:</strong> ${studentId}</div>
-                        <div><strong>Class:</strong> ${homeroom}</div>
-                        <div><strong>Date:</strong> ${timestamp}</div>
-                    </div>
-                    <div class="score-summary">
-                        <div class="score-main-compact">Score: 0 / 0 (0%)</div>
-                    </div>
-                </div>
-            `;
+            resultScore.innerHTML = `<div class="score-report-card"><div class="score-main-compact">No score data available</div></div>`;
         }
 
         const scorePercentage = totalPossible > 0 ? totalEarned / totalPossible : 0;
         resultScore.className = '';
         // We don't need high/medium/low classes on resultScore anymore as we use custom styling inside, 
         // but we can keep them if they affect other things. 
-        
+
         // Hide the check score button once results are shown
         if (checkScoreContainer) {
             checkScoreContainer.classList.add('hidden');
@@ -1677,7 +1585,9 @@ class TjQuizElement extends HTMLElement {
             }
         }
         if (validationMessage) {
-            validationMessage.textContent = autoTriggered ? 'Submitting your score to your teacher...' : '';
+            validationMessage.innerHTML = autoTriggered
+                ? '<span>Submitting score to teacher...</span>'
+                : '';
             validationMessage.className = '';
         }
         if (tryAgainButton) {
@@ -1706,9 +1616,13 @@ class TjQuizElement extends HTMLElement {
             }
 
             if (validationMessage) {
-                validationMessage.textContent = autoTriggered
-                    ? '✅ Score automatically submitted to your teacher.'
-                    : `✅ ${data.message || 'Submission successful!'}`;
+                const statusText = autoTriggered
+                    ? 'Score automatically submitted to your teacher'
+                    : (data.message || 'Submission successful!');
+                validationMessage.innerHTML = `
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                    <span>${statusText}</span>
+                `;
                 validationMessage.className = 'success';
             }
             if (sendButton) {
@@ -1723,7 +1637,10 @@ class TjQuizElement extends HTMLElement {
         } catch (error) {
             console.error('Error:', error);
             if (validationMessage) {
-                validationMessage.textContent = '⚠️ Error: Could not submit score. Please try again.';
+                validationMessage.innerHTML = `
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                    <span>Could not submit score. Please try again.</span>
+                `;
                 validationMessage.className = 'error';
             }
             if (sendButton) {
