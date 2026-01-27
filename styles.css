@@ -939,7 +939,7 @@ fieldset>legend {
 }
 
 .result-title {
-    font-size: 1.5rem;
+    font-size: 1.5em;
     font-weight: 800;
     color: var(--primary-color);
     margin-bottom: 1.5rem;
@@ -950,11 +950,11 @@ fieldset>legend {
 .student-details {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 1rem;
+    gap: 1.25rem;
     margin-bottom: 2rem;
-    font-size: 0.95rem;
+    font-size: 1.1em;
     border: 1px solid var(--border-light);
-    padding: 1rem;
+    padding: 1.25rem;
     border-radius: 0.5rem;
     background-color: var(--input-bg-light);
     text-align: left;
@@ -969,14 +969,14 @@ fieldset>legend {
 }
 
 .score-main-compact {
-    font-size: 2.5rem;
+    font-size: 2.5em;
     font-weight: 800;
     color: var(--primary-color);
     margin-bottom: 0.25rem;
 }
 
 .score-percentage {
-    font-size: 1.2rem;
+    font-size: 1.2em;
     color: var(--slate-color);
     font-weight: 600;
 }
