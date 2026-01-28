@@ -55,6 +55,7 @@ class TjQuizElement extends HTMLElement {
         }
 
         await this.loadTemplate();
+        this.setAttribute('translate', 'no');
         this.parseContent();
         this.setupEventListeners();
         this.generateQuiz();
@@ -93,6 +94,12 @@ class TjQuizElement extends HTMLElement {
             // Create template element and add styles properly
             const template = document.createElement('template');
             template.innerHTML = `<style>${stylesText}</style>${templateHtml}`;
+
+            // Clear shadow root before appending if it already has children 
+            // (to prevent duplicates during hot reloads or re-attachments)
+            if (this.shadowRoot.firstChild) {
+                this.shadowRoot.innerHTML = '';
+            }
 
             this.shadowRoot.appendChild(template.content.cloneNode(true));
             console.log('External template applied successfully');
@@ -1109,6 +1116,12 @@ class TjQuizElement extends HTMLElement {
     generateQuiz() {
         const checkScoreButton = this.shadowRoot.getElementById('checkScoreButton');
         const dynamicContent = this.shadowRoot.getElementById('dynamicContent');
+
+        if (!dynamicContent) {
+            console.error('generateQuiz failed: dynamicContent element not found in shadow DOM');
+            return;
+        }
+
         console.log('generateQuiz called, questions total:', this.totalQuestions);
 
         // Clear previous content

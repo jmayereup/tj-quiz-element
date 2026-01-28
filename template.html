@@ -1,80 +1,67 @@
-<!DOCTYPE html>
-<html lang="en">
+<div class="quiz-wrapper" translate="no">
+    <div class="container" id="mainContainer">
+        <div class="quiz-header">
+            <span class="theme-toggle" title="Toggle Light/Dark Mode">
+                <span class="light-icon">☀️</span>
+                <span class="dark-icon hidden">🌙</span>
+            </span>
+            <h1 id="quizTitle">Interactive Reading</h1>
+            <p id="quizDescription">Read the passage, then answer the questions below.</p>
+        </div>
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Interactive Reader Template</title>
-</head>
-
-<body>
-    <div class="quiz-wrapper" translate="no">
-        <div class="container" id="mainContainer">
-            <div class="quiz-header">
-                <span class="theme-toggle" title="Toggle Light/Dark Mode">
-                    <span class="light-icon">☀️</span>
-                    <span class="dark-icon hidden">🌙</span>
-                </span>
-                <h1 id="quizTitle">Interactive Reading</h1>
-                <p id="quizDescription">Read the passage, then answer the questions below.</p>
-            </div>
-
-            <form id="quizForm">
-                <div id="studentInfoSection" class="section-card">
-                    <div class="section-card-header">Student Information</div>
-                    <p class="student-instructions instruction">Please enter your Nickname, Homeroom, and Student ID
-                        before starting the quiz. / กรุณากรอกชื่อเล่น ห้องเรียน และรหัสนักเรียนของคุณก่อนเริ่มทำแบบทดสอบ
-                    </p>
-                    <div class="input-group">
-                        <label for="nickname" class="input-label">Nickname</label>
-                        <input type="text" id="nickname" name="nickname" class="form-input" placeholder="Jake">
+        <form id="quizForm">
+            <div id="studentInfoSection" class="section-card">
+                <div class="section-card-header">Student Information</div>
+                <p class="student-instructions instruction">Please enter your Nickname, Homeroom, and Student ID
+                    before starting the quiz. / กรุณากรอกชื่อเล่น ห้องเรียน และรหัสนักเรียนของคุณก่อนเริ่มทำแบบทดสอบ
+                </p>
+                <div class="input-group">
+                    <label for="nickname" class="input-label">Nickname</label>
+                    <input type="text" id="nickname" name="nickname" class="form-input" placeholder="Jake">
+                </div>
+                <div class="grid-container" style="margin-top: 1rem;">
+                    <div>
+                        <label for="homeroom" class="input-label">Homeroom</label>
+                        <input type="text" id="homeroom" name="homeroom" class="form-input" placeholder="1/1">
                     </div>
-                    <div class="grid-container" style="margin-top: 1rem;">
-                        <div>
-                            <label for="homeroom" class="input-label">Homeroom</label>
-                            <input type="text" id="homeroom" name="homeroom" class="form-input" placeholder="1/1">
-                        </div>
-                        <div>
-                            <label for="studentId" class="input-label">Student ID</label>
-                            <input type="text" id="studentId" name="studentId" class="form-input" placeholder="01">
-                        </div>
-                    </div>
-                    <div class="prequiz-actions">
-                        <button type="button" id="startQuizButton" class="button button-primary mt-4">Start
-                            Quiz</button>
-                        <p id="studentInfoAlert"></p>
+                    <div>
+                        <label for="studentId" class="input-label">Student ID</label>
+                        <input type="text" id="studentId" name="studentId" class="form-input" placeholder="01">
                     </div>
                 </div>
+                <div class="prequiz-actions">
+                    <button type="button" id="startQuizButton" class="button button-primary mt-4">Start
+                        Quiz</button>
+                    <p id="studentInfoAlert"></p>
+                </div>
+            </div>
 
-                <div id="quizContent" class="hidden">
-                    <div id="resultArea" class="result-area section-card hidden">
-                        <div id="resultScore"></div>
-                    </div>
+            <div id="quizContent" class="hidden">
+                <div id="resultArea" class="result-area section-card hidden">
+                    <div id="resultScore"></div>
+                </div>
 
-                    <div id="postScoreActions" class="post-score-section hidden">
-                        <p id="validationMessage"></p>
-                        <div class="post-score-actions">
-                            <button type="button" id="sendButton" class="button button-green hidden">
-                                Resend Score to Teacher
-                            </button>
-                            <button type="button" id="tryAgainButton" class="button button-slate">
-                                Try Again
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- Dynamic sections will be appended here as .section-card elements -->
-                    <div id="dynamicContent"></div>
-
-                    <div id="checkScoreContainer" class="actions-container">
-                        <button type="submit" id="checkScoreButton" class="button button-primary">
-                            Check My Score
+                <div id="postScoreActions" class="post-score-section hidden">
+                    <p id="validationMessage"></p>
+                    <div class="post-score-actions">
+                        <button type="button" id="sendButton" class="button button-green hidden">
+                            Resend Score to Teacher
+                        </button>
+                        <button type="button" id="tryAgainButton" class="button button-slate">
+                            Try Again
                         </button>
                     </div>
                 </div>
-            </form>
-        </div>
-    </div>
-</body>
 
-</html>
+                <!-- Dynamic sections will be appended here as .section-card elements -->
+                <div id="dynamicContent"></div>
+
+                <div id="checkScoreContainer" class="actions-container">
+                    <button type="submit" id="checkScoreButton" class="button button-primary">
+                        Check My Score
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
