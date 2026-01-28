@@ -55,6 +55,7 @@ class TjQuizElement extends HTMLElement {
         }
 
         await this.loadTemplate();
+        this.setAttribute('translate', 'no');
         this.parseContent();
         this.setupEventListeners();
         this.generateQuiz();
