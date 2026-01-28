@@ -37,6 +37,7 @@ class TjQuizElement extends HTMLElement {
         this.quizUnlocked = false; // track whether students completed the info gate
         this.autoSubmissionInProgress = false;
         this.scoreSubmitted = false;
+        this.ttsPaused = false; // explicitly track paused state for robustness
     }
 
     attributeChangedCallback(name, newValue) {
@@ -209,6 +210,7 @@ class TjQuizElement extends HTMLElement {
                         break;
                     case 'audio':
                         this.parseAudio(sectionContent);
+                        this.orderedSections.push({ type: 'audio', audioSrc: this.audioSrc });
                         lastSectionType = 'audio';
                         break;
                     default:
@@ -642,6 +644,10 @@ class TjQuizElement extends HTMLElement {
             input.dataset.word = item.word;
             input.dataset.correctLetter = item.letter;
             input.autocomplete = 'off';
+            input.setAttribute('autocapitalize', 'characters');
+            input.setAttribute('autocorrect', 'off');
+            input.setAttribute('spellcheck', 'false');
+            input.inputMode = 'text';
             input.title = 'Enter the letter for this definition';
 
             inputGroup.appendChild(input);
@@ -684,7 +690,7 @@ class TjQuizElement extends HTMLElement {
         words.forEach(word => {
             const regex = new RegExp(`\\*${word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\*`, 'gi');
             textWithBlanks = textWithBlanks.replace(regex, () => {
-                const inputHtml = `<input type="text" class="cloze-blank" data-answer="${word.toLowerCase()}" data-section-id="${sectionId}" data-blank-index="${blankIndex}" autocomplete="off" spellcheck="false" title="Fill in the blank">`;
+                const inputHtml = `<input type="text" class="cloze-blank" data-answer="${word.toLowerCase()}" data-section-id="${sectionId}" data-blank-index="${blankIndex}" autocomplete="off" spellcheck="false" inputmode="text" autocapitalize="none" autocorrect="off" title="Fill in the blank">`;
                 blankIndex++;
                 return inputHtml;
             });
@@ -702,7 +708,11 @@ class TjQuizElement extends HTMLElement {
         const target = e.target;
         if (target.type === 'text' && target.classList.contains('vocab-matching-input')) {
             const value = target.value.trim().toUpperCase();
-            target.value = value;
+
+            // Only update DOM if necessary to avoid disrupting iOS input focus/selection
+            if (target.value !== value) {
+                target.value = value;
+            }
 
             const sectionId = parseInt(target.dataset.sectionId);
             const word = target.dataset.word;
@@ -923,9 +933,9 @@ class TjQuizElement extends HTMLElement {
         this.shadowRoot.addEventListener('click', (event) => {
             const passageAudioToggle = event.target.closest('.passage-audio-toggle');
             if (passageAudioToggle) {
-                const passageWrapper = passageAudioToggle.closest('.passage-wrapper');
-                const passageTextEl = passageWrapper ? passageWrapper.querySelector('.passage-text') : null;
-                const text = passageTextEl ? passageTextEl.textContent : '';
+                const card = passageAudioToggle.closest('.section-card');
+                const passageTexts = card ? Array.from(card.querySelectorAll('.passage-text')) : [];
+                const text = passageTexts.map(el => el.textContent).join('\n');
                 this.handlePassageTTS(passageAudioToggle, text);
                 return;
             }
@@ -972,13 +982,14 @@ class TjQuizElement extends HTMLElement {
     }
 
     stopAllAudio() {
-        if (window.speechSynthesis && (window.speechSynthesis.speaking || window.speechSynthesis.paused)) {
+        if (window.speechSynthesis) {
             window.speechSynthesis.cancel();
         }
         if (this.audioPlayer) {
             this.audioPlayer.pause();
             this.audioPlayer.currentTime = 0;
         }
+        this.ttsPaused = false;
         this.setAudioIcon('paused');
         // Reset any passage-specific audio button icons
         if (this.currentAudioButton) {
@@ -990,19 +1001,29 @@ class TjQuizElement extends HTMLElement {
     handleTTS() {
         if (this.audioPlayer && !this.audioPlayer.paused) this.audioPlayer.pause();
 
-        if (window.speechSynthesis.paused) {
+        if (window.speechSynthesis.speaking && this.ttsPaused) {
             window.speechSynthesis.resume();
+            this.ttsPaused = false;
             this.setAudioIcon('playing');
-        } else if (window.speechSynthesis.speaking) {
+        } else if (window.speechSynthesis.speaking && !this.ttsPaused) {
             window.speechSynthesis.pause();
+            this.ttsPaused = true;
             this.setAudioIcon('paused');
         } else {
+            this.stopAllAudio(); // Clear anything else
             this.utterance = new SpeechSynthesisUtterance(this.passage);
-            this.utterance.onstart = () => this.setAudioIcon('playing');
-            this.utterance.onend = () => this.setAudioIcon('paused');
+            this.utterance.onstart = () => {
+                this.setAudioIcon('playing');
+                this.ttsPaused = false;
+            };
+            this.utterance.onend = () => {
+                this.setAudioIcon('paused');
+                this.ttsPaused = false;
+            };
             this.utterance.onerror = (e) => {
                 console.error("TTS Error:", e);
                 this.setAudioIcon('paused');
+                this.ttsPaused = false;
             };
             window.speechSynthesis.speak(this.utterance);
         }
@@ -1047,22 +1068,21 @@ class TjQuizElement extends HTMLElement {
         }
 
         // If speechSynthesis is currently speaking and the same button was used, toggle pause/resume
-        if (window.speechSynthesis && window.speechSynthesis.speaking) {
-            // If the same button triggered while speaking, pause/resume
-            if (this.currentAudioButton === button) {
-                if (window.speechSynthesis.paused) {
-                    window.speechSynthesis.resume();
-                    this.setPassageAudioIcon(button, 'playing');
-                } else {
-                    window.speechSynthesis.pause();
-                    this.setPassageAudioIcon(button, 'paused');
-                }
-                return;
+        if (window.speechSynthesis && window.speechSynthesis.speaking && this.currentAudioButton === button) {
+            if (this.ttsPaused) {
+                window.speechSynthesis.resume();
+                this.ttsPaused = false;
+                this.setPassageAudioIcon(button, 'playing');
             } else {
-                // different button - stop and continue to start new utterance
-                window.speechSynthesis.cancel();
+                window.speechSynthesis.pause();
+                this.ttsPaused = true;
+                this.setPassageAudioIcon(button, 'paused');
             }
+            return;
         }
+
+        // Otherwise stop existing and start new utterance
+        this.stopAllAudio();
 
         // Start new utterance for this passage
         try {
@@ -1070,15 +1090,22 @@ class TjQuizElement extends HTMLElement {
             this.utterance.onstart = () => {
                 this.setPassageAudioIcon(button, 'playing');
                 this.currentAudioButton = button;
+                this.ttsPaused = false;
             };
             this.utterance.onend = () => {
                 this.setPassageAudioIcon(button, 'paused');
-                if (this.currentAudioButton === button) this.currentAudioButton = null;
+                if (this.currentAudioButton === button) {
+                    this.currentAudioButton = null;
+                    this.ttsPaused = false;
+                }
             };
             this.utterance.onerror = (e) => {
                 console.error('Passage TTS Error:', e);
                 this.setPassageAudioIcon(button, 'paused');
-                if (this.currentAudioButton === button) this.currentAudioButton = null;
+                if (this.currentAudioButton === button) {
+                    this.currentAudioButton = null;
+                    this.ttsPaused = false;
+                }
             };
             window.speechSynthesis.speak(this.utterance);
         } catch (err) {
@@ -1141,7 +1168,23 @@ class TjQuizElement extends HTMLElement {
         let clozeRenderIndex = 0;
 
         this.orderedSections.forEach((sec) => {
-            if (sec.type === 'text') {
+            if (sec.type === 'audio') {
+                // If an audio section is found, render the global play button in the header
+                const quizHeader = this.shadowRoot.querySelector('.quiz-header');
+                if (quizHeader && !quizHeader.querySelector('.audio-toggle-container')) {
+                    const audioBtnContainer = document.createElement('div');
+                    audioBtnContainer.className = 'audio-toggle-container';
+                    audioBtnContainer.style.marginTop = '1rem';
+                    audioBtnContainer.innerHTML = `
+                        <button type="button" class="audio-toggle" title="Play Overall Audio">
+                            <svg class="play-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                            <svg class="pause-icon hidden" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>
+                            <span style="margin-left: 0.5rem; font-weight: 600;">Play Lesson Audio</span>
+                        </button>
+                    `;
+                    quizHeader.appendChild(audioBtnContainer);
+                }
+            } else if (sec.type === 'text') {
                 // render passage as a card
                 const { card, content } = this.createSectionCard(sec.heading || `Reading Passage`, {
                     cardClasses: ['passage-card']

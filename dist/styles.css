@@ -708,15 +708,21 @@ fieldset>legend {
 .vocab-matching-input {
     width: 2.5rem;
     height: 2.5rem;
+    padding: 0;
+    /* Remove padding to prevent clipping on mobile */
     text-align: center;
     font-weight: 700;
-    font-size: 1.1em;
+    font-size: 1.125rem;
+    /* ~18px to prevent iOS zoom (needs 16px+) */
+    line-height: normal;
+    /* Reset line-height */
     border: 2px solid var(--input-border-light);
     border-radius: 0.4rem;
-    background-color: white;
+    background-color: var(--card-bg-light);
     color: var(--text-light);
     text-transform: uppercase;
     flex-shrink: 0;
+    box-sizing: border-box;
 }
 
 :host(.dark) .vocab-matching-input {
@@ -754,12 +760,10 @@ fieldset>legend {
 
 .vocab-matching-row.correct .vocab-matching-input {
     border-color: var(--green-color);
-    background-color: white;
 }
 
 .vocab-matching-row.incorrect .vocab-matching-input {
     border-color: var(--red-color);
-    background-color: white;
 }
 
 .vocab-matching-row .feedback-icon {

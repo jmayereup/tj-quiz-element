@@ -644,6 +644,10 @@ class TjQuizElement extends HTMLElement {
             input.dataset.word = item.word;
             input.dataset.correctLetter = item.letter;
             input.autocomplete = 'off';
+            input.setAttribute('autocapitalize', 'characters');
+            input.setAttribute('autocorrect', 'off');
+            input.setAttribute('spellcheck', 'false');
+            input.inputMode = 'text';
             input.title = 'Enter the letter for this definition';
 
             inputGroup.appendChild(input);
@@ -686,7 +690,7 @@ class TjQuizElement extends HTMLElement {
         words.forEach(word => {
             const regex = new RegExp(`\\*${word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\*`, 'gi');
             textWithBlanks = textWithBlanks.replace(regex, () => {
-                const inputHtml = `<input type="text" class="cloze-blank" data-answer="${word.toLowerCase()}" data-section-id="${sectionId}" data-blank-index="${blankIndex}" autocomplete="off" spellcheck="false" title="Fill in the blank">`;
+                const inputHtml = `<input type="text" class="cloze-blank" data-answer="${word.toLowerCase()}" data-section-id="${sectionId}" data-blank-index="${blankIndex}" autocomplete="off" spellcheck="false" inputmode="text" autocapitalize="none" autocorrect="off" title="Fill in the blank">`;
                 blankIndex++;
                 return inputHtml;
             });
@@ -704,7 +708,11 @@ class TjQuizElement extends HTMLElement {
         const target = e.target;
         if (target.type === 'text' && target.classList.contains('vocab-matching-input')) {
             const value = target.value.trim().toUpperCase();
-            target.value = value;
+
+            // Only update DOM if necessary to avoid disrupting iOS input focus/selection
+            if (target.value !== value) {
+                target.value = value;
+            }
 
             const sectionId = parseInt(target.dataset.sectionId);
             const word = target.dataset.word;
