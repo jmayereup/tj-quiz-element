@@ -10,6 +10,8 @@ class TjQuizElement extends HTMLElement {
         this.attachShadow({ mode: 'open' });
         this.questionBank = [];
         this.passages = []; // support multiple text sections
+        this.selectedVoiceName = null;
+        this.isPlayingAll = false;
         this.instructions = []; // store instruction-only sections
         this.questionGroups = []; // questions grouped by preceding text section (sectionId) or null for global
         this.orderedSections = []; // preserve original section order
@@ -57,6 +59,18 @@ class TjQuizElement extends HTMLElement {
 
         await this.loadTemplate();
         this.setAttribute('translate', 'no');
+
+        if (!this._shouldShowAudioControls()) {
+            const voiceBtn = this.shadowRoot.getElementById('voice-btn');
+            if (voiceBtn) voiceBtn.classList.add('hidden');
+        }
+
+        if (window.speechSynthesis) {
+            window.speechSynthesis.onvoiceschanged = () => this._updateVoiceList();
+            // Initial call if voices are already loaded
+            this._updateVoiceList();
+        }
+
         this.parseContent();
         this.setupEventListeners();
         this.generateQuiz();
@@ -121,6 +135,91 @@ class TjQuizElement extends HTMLElement {
             return;
         }
     }
+
+    _getBestVoice(lang = "en-US") {
+        if (!window.speechSynthesis) return null;
+        const voices = window.speechSynthesis.getVoices();
+        if (voices.length === 0) return null;
+
+        const langPrefix = lang.split(/[-_]/)[0].toLowerCase();
+
+        // 1. Filter by language
+        let langVoices = voices.filter(v => v.lang.toLowerCase() === lang.toLowerCase());
+        if (langVoices.length === 0) {
+            langVoices = voices.filter(v => v.lang.split(/[-_]/)[0].toLowerCase() === langPrefix);
+        }
+
+        if (langVoices.length === 0) return null;
+
+        // 2. Priority list
+        const priorities = ["natural", "google", "premium", "siri"];
+        for (const p of priorities) {
+            const found = langVoices.find(v => v.name.toLowerCase().includes(p));
+            if (found) return found;
+        }
+
+        // 3. Fallback
+        const nonRobotic = langVoices.find(v => !v.name.toLowerCase().includes("microsoft"));
+        return nonRobotic || langVoices[0];
+    }
+
+    _updateVoiceList() {
+        if (!window.speechSynthesis) return;
+        const voices = window.speechSynthesis.getVoices();
+        const voiceList = this.shadowRoot.querySelector('.voice-list');
+        if (!voiceList) return;
+
+        const lang = "en-US";
+        const langVoices = voices.filter(v => v.lang.split(/[-_]/)[0].toLowerCase() === lang.split('-')[0]);
+        const bestVoice = this._getBestVoice(lang);
+
+        voiceList.innerHTML = '';
+        langVoices.sort((a, b) => a.name.localeCompare(b.name));
+
+        langVoices.forEach(voice => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.classList.add('voice-option-btn');
+            if (this.selectedVoiceName === voice.name) btn.classList.add('active');
+
+            let innerHTML = `<span>${voice.name}</span>`;
+            if (bestVoice && voice.name === bestVoice.name) {
+                innerHTML += `<span class="badge">Best</span>`;
+            }
+            btn.innerHTML = innerHTML;
+
+            btn.onclick = () => {
+                this.selectedVoiceName = voice.name;
+                this._updateVoiceList();
+                this._hideVoiceOverlay();
+            };
+            voiceList.appendChild(btn);
+        });
+    }
+
+    _showVoiceOverlay() {
+        const overlay = this.shadowRoot.querySelector('.voice-overlay');
+        if (overlay) {
+            overlay.classList.remove('hidden');
+            this._updateVoiceList();
+        }
+    }
+
+    _hideVoiceOverlay() {
+        const overlay = this.shadowRoot.querySelector('.voice-overlay');
+        if (overlay) {
+            overlay.classList.add('hidden');
+        }
+    }
+
+    _shouldShowAudioControls() {
+        const ua = navigator.userAgent.toLowerCase();
+        if (ua.includes("instagram") || ua.includes("facebook") || ua.includes("line")) {
+            return false;
+        }
+        return !!window.speechSynthesis;
+    }
+
 
     parseContent() {
         const content = this.originalContent || this.textContent;
@@ -944,6 +1043,21 @@ class TjQuizElement extends HTMLElement {
             if (audioToggle) {
                 this.handleAudioToggle();
             }
+
+            const voiceBtn = event.target.closest('#voice-btn');
+            if (voiceBtn) {
+                this._showVoiceOverlay();
+            }
+
+            const closeVoiceBtn = event.target.closest('.close-voice-btn');
+            if (closeVoiceBtn) {
+                this._hideVoiceOverlay();
+            }
+
+            const voiceOverlay = event.target.closest('.voice-overlay');
+            if (voiceOverlay && !event.target.closest('.voice-card')) {
+                this._hideVoiceOverlay();
+            }
         });
     }
 
@@ -1012,6 +1126,17 @@ class TjQuizElement extends HTMLElement {
         } else {
             this.stopAllAudio(); // Clear anything else
             this.utterance = new SpeechSynthesisUtterance(this.passage);
+            this.utterance.lang = "en-US";
+
+            const voices = window.speechSynthesis.getVoices();
+            let selectedVoice = voices.find(v => v.name === this.selectedVoiceName);
+            if (!selectedVoice) {
+                selectedVoice = this._getBestVoice("en-US");
+            }
+            if (selectedVoice) {
+                this.utterance.voice = selectedVoice;
+            }
+
             this.utterance.onstart = () => {
                 this.setAudioIcon('playing');
                 this.ttsPaused = false;
@@ -1087,6 +1212,17 @@ class TjQuizElement extends HTMLElement {
         // Start new utterance for this passage
         try {
             this.utterance = new SpeechSynthesisUtterance(text || '');
+            this.utterance.lang = "en-US";
+
+            const voices = window.speechSynthesis.getVoices();
+            let selectedVoice = voices.find(v => v.name === this.selectedVoiceName);
+            if (!selectedVoice) {
+                selectedVoice = this._getBestVoice("en-US");
+            }
+            if (selectedVoice) {
+                this.utterance.voice = selectedVoice;
+            }
+
             this.utterance.onstart = () => {
                 this.setPassageAudioIcon(button, 'playing');
                 this.currentAudioButton = button;
@@ -1169,6 +1305,7 @@ class TjQuizElement extends HTMLElement {
 
         this.orderedSections.forEach((sec) => {
             if (sec.type === 'audio') {
+                if (!this._shouldShowAudioControls()) return;
                 // If an audio section is found, render the global play button in the header
                 const quizHeader = this.shadowRoot.querySelector('.quiz-header');
                 if (quizHeader && !quizHeader.querySelector('.audio-toggle-container')) {
