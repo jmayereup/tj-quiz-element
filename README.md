@@ -1,4 +1,5 @@
-# TJ Quiz Element Authoring Guide
+#Moved to tj-components
+## TJ Quiz Element Authoring Guide
 
 Design interactive listening/reading quizzes with a single custom element. This guide explains how to structure quiz content inside `<tj-quiz-element>` so you can compose passages, instructions, vocabulary, cloze, and question sets without touching JavaScript.
 
